@@ -1,6 +1,8 @@
 /vendor/
-/node_modules/
+node_modules/
 composer.lock
+package-lock.json
 .env
+*:Zone.Identifier
 .phpunit.result.cache
 .phpunit.cache/

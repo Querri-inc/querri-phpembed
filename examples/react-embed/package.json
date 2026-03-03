@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"php -S localhost:8080 -t public\" \"vite\"",
+    "dev": "concurrently \"sh -c 'set -a && . ./.env && set +a && php -S localhost:8080 -t public'\" \"vite\"",
     "dev:php": "php -S localhost:8080 -t public",
     "dev:vite": "vite",
     "build": "vite build"
