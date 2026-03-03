@@ -227,6 +227,8 @@ Resolution order: explicit config value > `getenv()` > `$_ENV` > `$_SERVER` > de
 
 Manage users in your organization.
 
+> The `role` field accepts `"admin"` or `"member"` (default). This controls the user's organization-level role. Resource-level permissions (viewer/editor/owner on projects, dashboards, and sources) are managed separately through access policies.
+
 #### `$client->users->create($params)`
 
 Create a new user.
@@ -241,7 +243,7 @@ $user = $client->users->create([
     'external_id' => 'usr_alice',
     'first_name' => 'Alice',
     'last_name' => 'Smith',
-    'role' => 'viewer',
+    'role' => 'member',
 ]);
 ```
 
@@ -582,7 +584,7 @@ $client->getSession([
         'email' => 'alice@example.com',
         'first_name' => 'Alice',
         'last_name' => 'Smith',
-        'role' => 'viewer',
+        'role' => 'member',
     ],
 ]);
 ```

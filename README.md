@@ -164,7 +164,7 @@ For advanced use cases, access the API resources directly:
 ```php
 $user = $client->users->getOrCreate('ext-123', [
     'email' => 'user@example.com',
-    'role'  => 'viewer',
+    'role'  => 'member',
 ]);
 
 $user = $client->users->retrieve('usr_abc123');
