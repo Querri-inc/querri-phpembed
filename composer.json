@@ -24,6 +24,10 @@
             "Querri\\Embed\\Tests\\": "tests/"
         }
     },
+    "scripts": {
+        "test": "echo 'No tests yet — see https://github.com/Querri-inc/querri-phpembed/issues'",
+        "bump": "php scripts/bump-version.php"
+    },
     "config": {
         "sort-packages": true
     },

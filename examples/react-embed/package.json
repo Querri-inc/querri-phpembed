@@ -9,7 +9,7 @@
     "build": "vite build"
   },
   "dependencies": {
-    "@querri-inc/embed": "latest",
+    "@querri-inc/embed": "^0.1.15",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
