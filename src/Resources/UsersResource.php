@@ -57,6 +57,14 @@ final class UsersResource extends BaseResource
     }
 
     /**
+     * Remove an external ID mapping without affecting the user's org membership.
+     */
+    public function removeExternalId(string $externalId): array
+    {
+        return $this->delete('/users/external/' . rawurlencode($externalId));
+    }
+
+    /**
      * Get or create a user by external ID (idempotent).
      *
      * This is the key method used by getSession(). It creates the user if not
