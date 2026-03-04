@@ -6,7 +6,7 @@
     "keywords": ["querri", "embed", "analytics", "sdk"],
     "homepage": "https://github.com/Querri-inc/querri-phpembed",
     "require": {
-        "php": "^8.4",
+        "php": "^8.3",
         "symfony/http-client": "^7.2",
         "ext-json": "*",
         "ext-hash": "*"

@@ -1117,7 +1117,7 @@ export default function App() {
 
 ## Requirements
 
-- PHP 8.4+
+- PHP 8.3+
 - `ext-json`
 - `ext-hash`
 - [`symfony/http-client`](https://symfony.com/doc/current/http_client.html) ^7.2

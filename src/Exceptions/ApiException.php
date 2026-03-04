@@ -19,7 +19,7 @@ class ApiException extends QuerriException
         public readonly array $headers = [],
         public readonly ?string $requestId = null,
         public readonly ?string $type = null,
-        public readonly ?string $code = null,
+        public readonly ?string $errorCode = null,
         public readonly ?string $docUrl = null,
         ?\Throwable $previous = null,
     ) {
@@ -40,7 +40,7 @@ class ApiException extends QuerriException
 
         if (is_array($body)) {
             $type = is_string($body['type'] ?? null) ? $body['type'] : null;
-            $code = is_string($body['code'] ?? null) ? $body['code'] : null;
+            $errorCode = is_string($body['code'] ?? null) ? $body['code'] : null;
             $docUrl = is_string($body['doc_url'] ?? null) ? $body['doc_url'] : null;
         }
 
@@ -51,7 +51,7 @@ class ApiException extends QuerriException
             headers: $headers,
             requestId: $requestId,
             type: $type,
-            code: $code,
+            errorCode: $errorCode,
             docUrl: $docUrl,
         );
     }

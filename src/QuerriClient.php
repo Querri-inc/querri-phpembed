@@ -12,6 +12,11 @@ use Querri\Embed\Session\GetSession;
 use Querri\Embed\Session\GetSessionResult;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
+/**
+ * @property-read UsersResource $users    Users resource — create, retrieve, list, update, delete, and getOrCreate users.
+ * @property-read EmbedResource $embed    Embed resource — create, refresh, list, and revoke embed sessions.
+ * @property-read PoliciesResource $policies Policies resource — create, retrieve, list, update, delete policies and manage user assignments.
+ */
 final class QuerriClient
 {
     private readonly HttpClient $httpClient;
@@ -50,24 +55,16 @@ final class QuerriClient
     }
 
     /**
-     * Users resource — create, retrieve, list, update, delete, and getOrCreate users.
+     * @internal Lazy-load resource sub-clients.
      */
-    public UsersResource $users {
-        get => $this->_users ??= new UsersResource($this->httpClient);
-    }
-
-    /**
-     * Embed resource — create, refresh, list, and revoke embed sessions.
-     */
-    public EmbedResource $embed {
-        get => $this->_embed ??= new EmbedResource($this->httpClient);
-    }
-
-    /**
-     * Policies resource — create, retrieve, list, update, delete policies and manage user assignments.
-     */
-    public PoliciesResource $policies {
-        get => $this->_policies ??= new PoliciesResource($this->httpClient);
+    public function __get(string $name): UsersResource|EmbedResource|PoliciesResource
+    {
+        return match ($name) {
+            'users' => $this->_users ??= new UsersResource($this->httpClient),
+            'embed' => $this->_embed ??= new EmbedResource($this->httpClient),
+            'policies' => $this->_policies ??= new PoliciesResource($this->httpClient),
+            default => throw new \Error("Undefined property: " . static::class . "::\$$name"),
+        };
     }
 
     /**

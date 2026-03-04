@@ -27,7 +27,7 @@ Browser (React)                    PHP Server                      Querri API
 
 ## Prerequisites
 
-- PHP 8.4+
+- PHP 8.3+
 - Node.js 18+
 - Composer
 

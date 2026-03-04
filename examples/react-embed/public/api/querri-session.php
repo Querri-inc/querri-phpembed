@@ -53,10 +53,10 @@ try {
     // ------------------------------------------------------------------
 
     $session = $client->getSession([
-        'user' => [
-            'external_id' => 'demo-user',
-            'email' => 'demo@example.com',
-        ],
+        'user' => [ 
+            'external_id' => 'demo-user', 
+            'email' => 'demo@example.com', 
+        ], 
         'ttl' => 3600,
     ]);
 
@@ -65,7 +65,7 @@ try {
     http_response_code($e->status >= 400 ? $e->status : 500);
     echo json_encode([
         'error' => $e->getMessage(),
-        'code' => $e->code,
+        'code' => $e->errorCode,
     ]);
 } catch (QuerriException $e) {
     http_response_code(500);
