@@ -56,4 +56,24 @@ final class EmbedResource extends BaseResource
     {
         return $this->delete('/embed/sessions/' . rawurlencode($sessionId));
     }
+
+    /**
+     * Revoke all embed sessions for a given user ID.
+     *
+     * @return int Number of sessions revoked
+     */
+    public function revokeUserSessions(string $userId): int
+    {
+        $sessions = $this->listSessions();
+        $revoked = 0;
+
+        foreach ($sessions['data'] ?? [] as $session) {
+            if (($session['user_id'] ?? null) === $userId) {
+                $this->revokeSession($session['session_token']);
+                $revoked++;
+            }
+        }
+
+        return $revoked;
+    }
 }
