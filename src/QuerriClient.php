@@ -5,17 +5,37 @@ declare(strict_types=1);
 namespace Querri\Embed;
 
 use Querri\Embed\Http\HttpClient;
-use Querri\Embed\Resources\UsersResource;
+use Querri\Embed\Resources\AuditResource;
+use Querri\Embed\Resources\ChatsResource;
+use Querri\Embed\Resources\DashboardsResource;
+use Querri\Embed\Resources\DataResource;
 use Querri\Embed\Resources\EmbedResource;
+use Querri\Embed\Resources\FilesResource;
+use Querri\Embed\Resources\KeysResource;
 use Querri\Embed\Resources\PoliciesResource;
+use Querri\Embed\Resources\ProjectsResource;
+use Querri\Embed\Resources\SharingResource;
+use Querri\Embed\Resources\SourcesResource;
+use Querri\Embed\Resources\UsageResource;
+use Querri\Embed\Resources\UsersResource;
 use Querri\Embed\Session\GetSession;
 use Querri\Embed\Session\GetSessionResult;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
- * @property-read UsersResource $users    Users resource — create, retrieve, list, update, delete, and getOrCreate users.
- * @property-read EmbedResource $embed    Embed resource — create, refresh, list, and revoke embed sessions.
- * @property-read PoliciesResource $policies Policies resource — create, retrieve, list, update, delete policies and manage user assignments.
+ * @property-read UsersResource $users          User management — CRUD, getOrCreate, external ID mapping.
+ * @property-read EmbedResource $embed          Embed sessions — create, refresh, list, revoke.
+ * @property-read PoliciesResource $policies    Access policies / RLS — CRUD, user assignment, resolve.
+ * @property-read DashboardsResource $dashboards Dashboard management — CRUD, refresh.
+ * @property-read ProjectsResource $projects    Projects — CRUD, run, steps.
+ * @property-read ChatsResource $chats          Chats — CRUD within projects.
+ * @property-read DataResource $data            Data access — query sources with RLS.
+ * @property-read SourcesResource $sources      Sources & connectors — CRUD, sync.
+ * @property-read FilesResource $files          File management — list, retrieve, delete.
+ * @property-read KeysResource $keys            API key management — create, list, revoke.
+ * @property-read AuditResource $audit          Audit log — query events.
+ * @property-read UsageResource $usage          Usage metrics — org and per-user.
+ * @property-read SharingResource $sharing      Sharing / permissions — project and dashboard access.
  */
 final class QuerriClient
 {
@@ -24,6 +44,16 @@ final class QuerriClient
     private ?UsersResource $_users = null;
     private ?EmbedResource $_embed = null;
     private ?PoliciesResource $_policies = null;
+    private ?DashboardsResource $_dashboards = null;
+    private ?ProjectsResource $_projects = null;
+    private ?ChatsResource $_chats = null;
+    private ?DataResource $_data = null;
+    private ?SourcesResource $_sources = null;
+    private ?FilesResource $_files = null;
+    private ?KeysResource $_keys = null;
+    private ?AuditResource $_audit = null;
+    private ?UsageResource $_usage = null;
+    private ?SharingResource $_sharing = null;
 
     /**
      * Create a new Querri client.
@@ -57,12 +87,22 @@ final class QuerriClient
     /**
      * @internal Lazy-load resource sub-clients.
      */
-    public function __get(string $name): UsersResource|EmbedResource|PoliciesResource
+    public function __get(string $name): UsersResource|EmbedResource|PoliciesResource|DashboardsResource|ProjectsResource|ChatsResource|DataResource|SourcesResource|FilesResource|KeysResource|AuditResource|UsageResource|SharingResource
     {
         return match ($name) {
             'users' => $this->_users ??= new UsersResource($this->httpClient),
             'embed' => $this->_embed ??= new EmbedResource($this->httpClient),
             'policies' => $this->_policies ??= new PoliciesResource($this->httpClient),
+            'dashboards' => $this->_dashboards ??= new DashboardsResource($this->httpClient),
+            'projects' => $this->_projects ??= new ProjectsResource($this->httpClient),
+            'chats' => $this->_chats ??= new ChatsResource($this->httpClient),
+            'data' => $this->_data ??= new DataResource($this->httpClient),
+            'sources' => $this->_sources ??= new SourcesResource($this->httpClient),
+            'files' => $this->_files ??= new FilesResource($this->httpClient),
+            'keys' => $this->_keys ??= new KeysResource($this->httpClient),
+            'audit' => $this->_audit ??= new AuditResource($this->httpClient),
+            'usage' => $this->_usage ??= new UsageResource($this->httpClient),
+            'sharing' => $this->_sharing ??= new SharingResource($this->httpClient),
             default => throw new \Error("Undefined property: " . static::class . "::\$$name"),
         };
     }
