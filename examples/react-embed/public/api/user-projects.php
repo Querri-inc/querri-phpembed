@@ -8,15 +8,11 @@ declare(strict_types=1);
  * POST /api/user-projects.php
  * Body: { "external_id": "demo-user", "email": "john@example.com" }
  *
- * Demonstrates how to get a per-user project list using an embed session:
+ * Demonstrates how to get a per-user, FGA-filtered project list:
  *
- * 1. Create an embed session for the user via the public API
- * 2. Use that session token to call the internal /api/projects endpoint
- * 3. The internal endpoint applies FGA filtering — only projects the user
- *    has "viewer" access to are returned
- *
- * This is useful when your PHP backend needs to know which projects a
- * specific embed user can see, before rendering the embedded UI.
+ * 1. Create an embed session for the user (resolves user + creates session)
+ * 2. Create a user-scoped client via asUser()
+ * 3. List projects — the internal API applies FGA filtering automatically
  */
 
 require_once __DIR__ . '/../../../../vendor/autoload.php';
@@ -24,7 +20,6 @@ require_once __DIR__ . '/../../../../vendor/autoload.php';
 use Querri\Embed\QuerriClient;
 use Querri\Embed\Exceptions\ApiException;
 use Querri\Embed\Exceptions\QuerriException;
-use Symfony\Component\HttpClient\HttpClient;
 
 // Only accept POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -49,7 +44,6 @@ try {
     $client = new QuerriClient();
 
     // Step 1: Create an embed session for this user.
-    // getSession() resolves the user (getOrCreate) and creates a session in one call.
     $session = $client->getSession([
         'user' => array_filter([
             'external_id' => $externalId,
@@ -57,45 +51,16 @@ try {
             'first_name'  => $input['first_name'] ?? null,
             'last_name'   => $input['last_name'] ?? null,
         ]),
-        'ttl' => 900, // Minimum allowed TTL is 900s (15 minutes)
+        'ttl' => 900,
     ]);
 
-    $sessionToken = $session->sessionToken;
+    // Step 2: Create a user-scoped client and list FGA-filtered projects.
+    $userClient = $client->asUser($session);
+    $projects = $userClient->projects->list();
 
-    // Step 2: Derive the base host from QUERRI_URL (same env var the SDK uses).
-    // The SDK's Config appends /api/v1, but we need the bare host for internal API.
-    $host = getenv('QUERRI_URL') ?: ($_ENV['QUERRI_URL'] ?? $_SERVER['QUERRI_URL'] ?? 'https://app.querri.com');
-    $host = rtrim($host, '/');
-
-    // Step 3: Call the internal /api/projects endpoint using the embed session token.
-    // This endpoint applies FGA filtering — only projects the user has access to.
-    $httpClient = HttpClient::create(['timeout' => 15]);
-    $response = $httpClient->request('GET', "{$host}/api/projects", [
-        'headers' => [
-            'X-Embed-Session' => $sessionToken,
-            'Accept' => 'application/json',
-        ],
-    ]);
-
-    $statusCode = $response->getStatusCode();
-
-    if ($statusCode >= 400) {
-        http_response_code($statusCode);
-        echo json_encode([
-            'error' => 'Failed to fetch user projects',
-            'status' => $statusCode,
-            'detail' => $response->getContent(false),
-        ]);
-        exit;
-    }
-
-    $projects = $response->toArray(false);
-
-    // Return the filtered project list along with the session token
-    // (useful if you also want to embed the UI afterward).
     echo json_encode([
         'user_external_id' => $externalId,
-        'session_token' => $sessionToken,
+        'session_token' => $session->sessionToken,
         'projects' => $projects,
     ]);
 } catch (ApiException $e) {

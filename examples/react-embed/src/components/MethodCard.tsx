@@ -16,10 +16,6 @@ export interface MethodDef {
   httpMethod: string;
   fields: FieldDef[];
   dangerous?: boolean;
-  /** Custom endpoint URL — defaults to /api/sdk.php with { action, params } body */
-  endpoint?: string;
-  /** When true, send form values as flat JSON body instead of { action, params } wrapper */
-  flatBody?: boolean;
 }
 
 interface MethodCardProps {
@@ -165,15 +161,10 @@ export default function MethodCard({ method, onResponse }: MethodCardProps) {
         Object.assign(params, data);
       }
 
-      const url = method.endpoint || '/api/sdk.php';
-      const body = method.flatBody
-        ? JSON.stringify({ ...params, ...data })
-        : JSON.stringify({ action: method.action, params });
-
-      const res = await fetch(url, {
+      const res = await fetch('/api/sdk.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body,
+        body: JSON.stringify({ action: method.action, params }),
       });
 
       const json = await res.json();

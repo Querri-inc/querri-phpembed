@@ -153,6 +153,7 @@ The SDK auto-creates and caches a named access policy from this specification.
   - [Users](#users)
   - [Embed](#embed)
   - [Policies](#policies)
+- [User-Scoped Client (`asUser`)](#user-scoped-client-asuser)
 - [getSession() Deep Dive](#getsession-deep-dive)
 - [Error Handling](#error-handling)
 - [Framework Guides](#framework-guides)
@@ -498,6 +499,94 @@ columns(?string $sourceId = null): array
 ```php
 $cols = $client->policies->columns('src_1');
 // [['source_id' => ..., 'source_name' => ..., 'columns' => [['name' => ..., 'type' => ...]]]]
+```
+
+---
+
+## User-Scoped Client (`asUser`)
+
+The `UserQuerriClient` lets you call the Querri API as a specific embed user. Resources are automatically filtered by FGA (Fine-Grained Authorization) — the user only sees data they have access to.
+
+### Quick Example
+
+```php
+$client = new QuerriClient();
+
+// Step 1: Create an embed session for the user
+$session = $client->getSession([
+    'user' => [
+        'external_id' => 'usr_alice',
+        'email' => 'alice@example.com',
+    ],
+    'ttl' => 900,
+]);
+
+// Step 2: Create a user-scoped client
+$userClient = $client->asUser($session);
+
+// Step 3: Call resources — results are FGA-filtered
+$projects = $userClient->projects->list();       // only projects Alice can access
+$dashboards = $userClient->dashboards->list();   // only dashboards Alice can access
+```
+
+### How It Works
+
+`asUser()` creates a `UserQuerriClient` that calls the internal API (`/api/`) with the embed session token in the `X-Embed-Session` header. The internal API applies FGA filtering automatically — only resources the user has been granted access to (via `sharing.shareProject()`, `sharing.shareDashboard()`, etc.) are returned.
+
+This is different from the admin `QuerriClient`, which calls the public API (`/api/v1/`) with an API key and returns all resources in the organization.
+
+### Available Resources
+
+| Resource | Example | Description |
+|----------|---------|-------------|
+| `$userClient->projects` | `->list()`, `->retrieve($id)`, `->run($id, $params)` | Projects the user can access |
+| `$userClient->dashboards` | `->list()`, `->retrieve($id)`, `->refresh($id)` | Dashboards the user can access |
+| `$userClient->sources` | `->list()`, `->listConnectors()` | Data sources and connectors |
+| `$userClient->data` | `->query($params)`, `->getSourceData($id)` | Query data with RLS enforcement |
+| `$userClient->chats` | `->create($projectId, $params)`, `->list($projectId)` | Chats within accessible projects |
+
+These are the same Resource classes used by the admin client — only the authentication and base URL differ.
+
+### Granting Access
+
+To give a user access to a project or dashboard, use the admin client's sharing resource:
+
+```php
+$client = new QuerriClient();
+
+// Grant Alice viewer access to a project
+$client->sharing->shareProject('proj_abc', [
+    'user_id' => 'user_alice_id',
+    'permission' => 'view',
+]);
+
+// Now Alice's user client will include this project
+$session = $client->getSession(['user' => 'usr_alice', 'ttl' => 900]);
+$userClient = $client->asUser($session);
+$projects = $userClient->projects->list();  // includes proj_abc
+```
+
+### Full Server Example
+
+```php
+// POST /api/user-projects.php
+$client = new QuerriClient();
+
+$session = $client->getSession([
+    'user' => array_filter([
+        'external_id' => $externalId,
+        'email'       => $input['email'] ?? null,
+    ]),
+    'ttl' => 900,
+]);
+
+$userClient = $client->asUser($session);
+$projects = $userClient->projects->list();
+
+echo json_encode([
+    'session_token' => $session->sessionToken,
+    'projects' => $projects,
+]);
 ```
 
 ---
@@ -1129,9 +1218,9 @@ export default function App() {
 | Framework helpers | `createSessionHandler()` for Next.js, SvelteKit, etc. | Use your framework's routing directly |
 | Async iteration | `for await...of` on paginated results | Not applicable (synchronous) |
 | Streaming | `ChatStream` for SSE responses | Not implemented (embed-focused) |
-| Additional resources | Projects, Chats, Dashboards, Data, Files, Sources, Keys, Sharing, Audit, Usage | Users, Embed, Policies (core embed resources) |
+| Additional resources | Projects, Chats, Dashboards, Data, Files, Sources, Keys, Sharing, Audit, Usage | All of the same, plus `asUser()` for FGA-filtered access |
 | Config keys | `camelCase` only | Both `camelCase` and `snake_case` accepted |
 | HTTP client | Built-in `fetch` | Symfony HttpClient (HTTP/2 native) |
 | Policy hash | `hashAccessSpec()` in TypeScript | Identical algorithm in PHP — cross-SDK compatible |
 
-The PHP SDK focuses on the embed use case. For resources not covered (Projects, Dashboards, etc.), use the [HTTP API directly](https://app.querri.com/docs/api).
+The PHP SDK covers the full Querri API. Use `$client->asUser($session)` for FGA-filtered, per-user access to projects, dashboards, and other resources.

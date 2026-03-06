@@ -63,7 +63,7 @@ try {
         'policies.columns'     => $client->policies->columns($params['source_id'] ?? null),
 
         // ─── Dashboards ──────────────────────────────────
-        'dashboards.list'          => $client->dashboards->list(),
+        'dashboards.list'          => $client->dashboards->list($params ?: null),
         'dashboards.create'        => $client->dashboards->create($params),
         'dashboards.retrieve'      => $client->dashboards->retrieve($params['dashboard_id']),
         'dashboards.update'        => $client->dashboards->update($params['dashboard_id'], $params['data'] ?? []),
