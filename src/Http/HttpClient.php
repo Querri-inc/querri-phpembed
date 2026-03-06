@@ -78,7 +78,11 @@ final class HttpClient
                 ];
 
                 if ($body !== null) {
-                    $requestOptions['body'] = json_encode($body, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+                    $flags = JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES;
+                    if ($body === []) {
+                        $flags |= JSON_FORCE_OBJECT;
+                    }
+                    $requestOptions['body'] = json_encode($body, $flags);
                 }
 
                 $response = $this->client->request($method, $url, $requestOptions);
@@ -173,13 +177,17 @@ final class HttpClient
     private function buildHeaders(?array $extra, mixed $body): array
     {
         $headers = [
-            'Authorization' => "Bearer {$this->config->apiKey}",
             'Accept' => 'application/json',
             'User-Agent' => $this->config->userAgent,
         ];
 
-        if ($this->config->orgId !== null) {
-            $headers['X-Tenant-ID'] = $this->config->orgId;
+        if ($this->config->sessionToken !== null) {
+            $headers['X-Embed-Session'] = $this->config->sessionToken;
+        } else {
+            $headers['Authorization'] = "Bearer {$this->config->apiKey}";
+            if ($this->config->orgId !== null) {
+                $headers['X-Tenant-ID'] = $this->config->orgId;
+            }
         }
 
         if ($body !== null) {

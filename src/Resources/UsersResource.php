@@ -74,6 +74,6 @@ final class UsersResource extends BaseResource
      */
     public function getOrCreate(string $externalId, ?array $params = null): array
     {
-        return $this->put('/users/external/' . rawurlencode($externalId), $params);
+        return $this->put('/users/external/' . rawurlencode($externalId), $params ?? []);
     }
 }

@@ -9,6 +9,12 @@ namespace Querri\Embed\Resources;
  */
 final class ProjectsResource extends BaseResource
 {
+    /**
+     * List projects. Optionally filter by user (FGA-filtered).
+     *
+     * @param array{user_id?: string, limit?: int, after?: string}|null $params
+     *   user_id: WorkOS user ID or external ID — returns only projects the user can access
+     */
     public function list(?array $params = null): array
     {
         return $this->get('/projects', $params);

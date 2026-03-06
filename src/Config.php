@@ -19,6 +19,7 @@ final readonly class Config
         public float $timeout,
         public int $maxRetries,
         public string $userAgent,
+        public ?string $sessionToken = null,
     ) {
     }
 
@@ -52,6 +53,30 @@ final readonly class Config
             timeout: $timeout ?? 30.0,
             maxRetries: $maxRetries ?? 3,
             userAgent: 'querri-php/0.1.0',
+        );
+    }
+
+    /**
+     * Create a session-based config for the internal API.
+     * Uses X-Embed-Session auth and /api/ base URL instead of /api/v1/.
+     */
+    public static function forSession(
+        string $sessionToken,
+        ?string $host = null,
+        ?float $timeout = null,
+        ?int $maxRetries = null,
+    ): self {
+        $host ??= self::env('QUERRI_URL') ?? 'https://app.querri.com';
+        $host = rtrim($host, '/');
+
+        return new self(
+            apiKey: '',
+            orgId: null,
+            baseUrl: "{$host}/api",
+            timeout: $timeout ?? 30.0,
+            maxRetries: $maxRetries ?? 3,
+            userAgent: 'querri-php/0.1.0',
+            sessionToken: $sessionToken,
         );
     }
 

@@ -136,20 +136,6 @@ const embedMethods: MethodDef[] = [
       { name: 'user_id', label: 'User ID', type: 'text', required: true, placeholder: 'user_01H...' },
     ],
   },
-  {
-    action: 'embed.userProjects',
-    label: 'List User Projects (FGA-filtered)',
-    description: 'Creates an embed session, then calls the internal API to list only projects the user has access to via FGA permissions',
-    httpMethod: 'GET',
-    endpoint: '/api/user-projects.php',
-    flatBody: true,
-    fields: [
-      { name: 'external_id', label: 'External ID', type: 'text', required: true, placeholder: 'my-user-123' },
-      { name: 'email', label: 'Email', type: 'text', placeholder: 'user@example.com' },
-      { name: 'first_name', label: 'First Name', type: 'text' },
-      { name: 'last_name', label: 'Last Name', type: 'text' },
-    ],
-  },
 ];
 
 const policiesMethods: MethodDef[] = [
@@ -252,9 +238,11 @@ const dashboardsMethods: MethodDef[] = [
   {
     action: 'dashboards.list',
     label: 'List Dashboards',
-    description: 'GET /dashboards — list all dashboards',
+    description: 'GET /dashboards — list dashboards (optionally filter by user via FGA)',
     httpMethod: 'GET',
-    fields: [],
+    fields: [
+      { name: 'user_id', label: 'User ID (FGA filter)', type: 'text', placeholder: 'user_01H... or external-id' },
+    ],
   },
   {
     action: 'dashboards.create',
@@ -320,9 +308,10 @@ const projectsMethods: MethodDef[] = [
   {
     action: 'projects.list',
     label: 'List Projects',
-    description: 'GET /projects — cursor-paginated project list',
+    description: 'GET /projects — list projects (optionally filter by user via FGA)',
     httpMethod: 'GET',
     fields: [
+      { name: 'user_id', label: 'User ID (FGA filter)', type: 'text', placeholder: 'user_01H... or external-id' },
       { name: 'limit', label: 'Limit', type: 'number', placeholder: '50' },
       { name: 'after', label: 'After (cursor)', type: 'text' },
     ],

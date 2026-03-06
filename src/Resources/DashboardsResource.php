@@ -9,9 +9,15 @@ namespace Querri\Embed\Resources;
  */
 final class DashboardsResource extends BaseResource
 {
-    public function list(): array
+    /**
+     * List dashboards. Optionally filter by user (FGA-filtered).
+     *
+     * @param array{user_id?: string}|null $params
+     *   user_id: WorkOS user ID or external ID — returns only dashboards the user can access
+     */
+    public function list(?array $params = null): array
     {
-        return $this->get('/dashboards');
+        return $this->get('/dashboards', $params);
     }
 
     /**

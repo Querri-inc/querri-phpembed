@@ -115,7 +115,7 @@ export default function UserProjectsPage() {
       <h1 style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>User Projects</h1>
       <p style={{ color: '#666', fontSize: '0.9rem', marginTop: 0, marginBottom: '1.25rem' }}>
         List only the projects a specific embed user has access to via FGA permissions.
-        This creates an embed session, then calls the internal API which applies per-user filtering.
+        Uses <code>$client-&gt;asUser($session)</code> to call the internal API with session auth.
       </p>
 
       <div style={gridStyle}>
@@ -173,9 +173,9 @@ export default function UserProjectsPage() {
           <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#f8f9fa', borderRadius: '6px', fontSize: '0.8rem', color: '#555' }}>
             <strong>How it works:</strong>
             <ol style={{ margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>
-              <li>Creates a short-lived embed session for this user via the public API</li>
-              <li>Uses the session token to call the internal <code>/api/projects</code> endpoint</li>
-              <li>The internal endpoint checks FGA permissions and returns only accessible projects</li>
+              <li>Resolves the user via <code>getSession()</code> (getOrCreate + embed session)</li>
+              <li>Creates a user client via <code>$client-&gt;asUser($session)</code></li>
+              <li>Calls <code>$userClient-&gt;projects-&gt;list()</code> — internal API applies FGA filtering</li>
             </ol>
             <p style={{ margin: '0.5rem 0 0' }}>
               To grant a user access to a project, use <code>sharing.shareProject()</code> in the SDK Explorer.

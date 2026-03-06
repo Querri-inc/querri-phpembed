@@ -39,6 +39,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  */
 final class QuerriClient
 {
+    private readonly Config $config;
     private readonly HttpClient $httpClient;
 
     private ?UsersResource $_users = null;
@@ -81,7 +82,17 @@ final class QuerriClient
             $config instanceof Config => $config,
         };
 
+        $this->config = $resolved;
         $this->httpClient = new HttpClient($resolved, $httpClient);
+    }
+
+    /**
+     * Create a user-scoped client from a session result.
+     * Uses the internal API with embed session auth — resources are FGA-filtered.
+     */
+    public function asUser(GetSessionResult $session): UserQuerriClient
+    {
+        return new UserQuerriClient($session, $this->config);
     }
 
     /**
