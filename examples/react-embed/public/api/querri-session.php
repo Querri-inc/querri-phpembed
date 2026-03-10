@@ -53,10 +53,16 @@ try {
     // ------------------------------------------------------------------
 
     $session = $client->getSession([
-        'user' => [ 
-            'external_id' => 'demo-user', 
-            'email' => 'demo@example.com', 
-        ], 
+        'user' => [
+            'external_id' => 'demo-user',
+            'email'       => 'demo@example.com',
+            'first_name'  => 'Jane',
+            'last_name'   => 'Doe',
+        ],
+        'access' => [
+            'sources' => ['src_sales_data'],
+            'filters' => ['store_id' => '42'],
+        ],
         'ttl' => 3600,
     ]);
 
