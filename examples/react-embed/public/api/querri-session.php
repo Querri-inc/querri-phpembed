@@ -53,10 +53,16 @@ try {
     // ------------------------------------------------------------------
 
     $session = $client->getSession([
-        'user' => [ 
-            'external_id' => 'demo-user', 
-            'email' => 'demo@example.com', 
-        ], 
+        'user' => [
+            'external_id' => 'john-sim-querri',
+            'email'       => 'john.sim@querri.com',
+            'first_name'  => 'John',
+            'last_name'   => 'Sim',
+        ],
+        'access' => [
+            'sources' => ['franchisor_financial_reports_202602190025.csv'],
+            'filters' => ['store_id' => '1804'],
+        ],
         'ttl' => 3600,
     ]);
 

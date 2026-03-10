@@ -52,7 +52,7 @@ final readonly class Config
             baseUrl: $baseUrl,
             timeout: $timeout ?? 30.0,
             maxRetries: $maxRetries ?? 3,
-            userAgent: 'querri-php/0.1.0',
+            userAgent: 'querri-php/0.1.1',
         );
     }
 
