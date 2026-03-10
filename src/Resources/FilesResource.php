@@ -12,9 +12,12 @@ namespace Querri\Embed\Resources;
  */
 final class FilesResource extends BaseResource
 {
-    public function list(): array
+    /**
+     * @param array{limit?: int, after?: string}|null $params
+     */
+    public function list(?array $params = null): array
     {
-        return $this->get('/files');
+        return $this->get('/files', $params);
     }
 
     public function retrieve(string $fileId): array

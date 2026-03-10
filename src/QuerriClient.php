@@ -35,7 +35,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * @property-read KeysResource $keys            API key management — create, list, revoke.
  * @property-read AuditResource $audit          Audit log — query events.
  * @property-read UsageResource $usage          Usage metrics — org and per-user.
- * @property-read SharingResource $sharing      Sharing / permissions — project and dashboard access.
+ * @property-read SharingResource $sharing      Sharing / permissions — project, dashboard, and source access.
  */
 final class QuerriClient
 {

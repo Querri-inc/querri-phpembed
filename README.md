@@ -198,7 +198,27 @@ $session = $client->embed->createSession([
 
 $refreshed = $client->embed->refreshSession($session['session_token']);
 $client->embed->revokeSession('ses_abc123');
+$client->embed->revokeUserSessions('usr_abc123');
 ```
+
+### All Resources
+
+Beyond the core embed resources above, the SDK provides full access to the Querri API:
+
+| Resource | Access | Key Methods |
+|----------|--------|-------------|
+| `$client->dashboards` | Dashboard management | `list`, `create`, `retrieve`, `update`, `del`, `refresh` |
+| `$client->projects` | Analysis projects | `list`, `create`, `retrieve`, `run`, `runStatus` |
+| `$client->chats` | Chats within projects | `create`, `list`, `retrieve`, `del`, `cancel` |
+| `$client->data` | Data sources & queries | `listSources`, `createSource`, `query`, `appendRows` |
+| `$client->sources` | Connectors & sync | `listConnectors`, `list`, `create`, `sync` |
+| `$client->files` | File management | `list`, `retrieve`, `del` |
+| `$client->keys` | API key management | `create`, `list`, `retrieve`, `revoke` |
+| `$client->audit` | Audit log | `listEvents` |
+| `$client->usage` | Usage metrics | `getOrgUsage`, `getUserUsage` |
+| `$client->sharing` | Sharing & permissions | `shareProject`, `shareDashboard`, `shareSource` |
+
+See **[docs/server-sdk.md](docs/server-sdk.md)** for complete method signatures and examples.
 
 ## Error Handling
 
@@ -210,9 +230,12 @@ QuerriException
 ├── ConnectionException      — network failures (auto-retried)
 │   └── TimeoutException     — request timeout exceeded
 └── ApiException             — HTTP error responses
+    ├── ValidationException  — 400
     ├── AuthenticationException — 401
-    ├── RateLimitException   — 429 (auto-retried)
+    ├── PermissionException  — 403
     ├── NotFoundException    — 404
+    ├── ConflictException    — 409
+    ├── RateLimitException   — 429 (auto-retried)
     └── ServerException      — 5xx (auto-retried)
 ```
 
@@ -294,7 +317,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 - This SDK uses the **Server Token** auth mode. Your PHP backend creates session tokens and the frontend embed consumes them. For other auth modes (Share Key, Popup Login), see the [JS SDK docs](https://www.npmjs.com/package/@querri-inc/embed).
 - **React/Vue/Angular:** Memoize the `auth` prop if it's an object. A new object reference on every render cycle causes the iframe to be destroyed and recreated.
-- The PHP SDK focuses on the embed use case (Users, Embed, Policies). For additional resources (Projects, Dashboards, Chats, etc.), use the [JS SDK](https://www.npmjs.com/package/@querri-inc/embed) or the [HTTP API directly](https://app.querri.com/docs/api).
+- The PHP SDK covers the full Querri API (all 13 resources). For frontend-only use cases, see the [JS SDK](https://www.npmjs.com/package/@querri-inc/embed).
 
 ## Requirements
 

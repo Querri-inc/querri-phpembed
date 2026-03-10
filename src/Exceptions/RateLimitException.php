@@ -37,9 +37,18 @@ class RateLimitException extends ApiException
         $docUrl = null;
 
         if (is_array($body)) {
-            $type = is_string($body['type'] ?? null) ? $body['type'] : null;
-            $code = is_string($body['code'] ?? null) ? $body['code'] : null;
-            $docUrl = is_string($body['doc_url'] ?? null) ? $body['doc_url'] : null;
+            // Stripe-style nested error object (primary format)
+            $error = is_array($body['error'] ?? null) ? $body['error'] : null;
+            $source = $error ?? $body;
+
+            $type = is_string($source['type'] ?? null) ? $source['type'] : null;
+            $code = is_string($source['code'] ?? null) ? $source['code'] : null;
+            $docUrl = is_string($source['doc_url'] ?? null) ? $source['doc_url'] : null;
+
+            // Fall back to body request_id when header is absent
+            if ($requestId === null && $error !== null) {
+                $requestId = is_string($error['request_id'] ?? null) ? $error['request_id'] : null;
+            }
         }
 
         $ra = $headers['retry-after'][0] ?? $headers['retry-after'] ?? null;

@@ -29,9 +29,9 @@ final class PoliciesResource extends BaseResource
     }
 
     /**
-     * List policies with optional name filter.
+     * List policies with optional name filter and cursor pagination.
      *
-     * @param array{name?: string}|null $params
+     * @param array{name?: string, limit?: int, after?: string}|null $params
      */
     public function list(?array $params = null): array
     {

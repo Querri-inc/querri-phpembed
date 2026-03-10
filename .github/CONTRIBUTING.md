@@ -24,7 +24,7 @@ Thanks for your interest in contributing! This guide will help you get started.
 src/
   Exceptions/   Exception hierarchy (ApiException, RateLimitException, etc.)
   Http/         HTTP client and retry strategy
-  Resources/    API resource classes (Users, Embed, Policies)
+  Resources/    API resource classes (Users, Embed, Policies, Dashboards, Projects, Chats, Data, Sources, Files, Keys, Audit, Usage, Sharing)
   Session/      getSession() orchestration and result DTO
 ```
 
