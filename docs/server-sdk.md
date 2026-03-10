@@ -2042,9 +2042,9 @@ export default function App() {
 | Framework helpers | `createSessionHandler()` for Next.js, SvelteKit, etc. | Use your framework's routing directly |
 | Async iteration | `for await...of` on paginated results | Not applicable (synchronous) |
 | Streaming | `ChatStream` for SSE responses | Not implemented (embed-focused) |
-| Additional resources | Full API coverage | Full API coverage, plus `asUser()` for FGA-filtered access |
+| User-scoped client | `asUser()` → `UserQuerri` (5 resources) | `asUser()` → `UserQuerriClient` (5 resources) |
 | Config keys | `camelCase` only | Both `camelCase` and `snake_case` accepted |
 | HTTP client | Built-in `fetch` | Symfony HttpClient (HTTP/2 native) |
 | Policy hash | `hashAccessSpec()` in TypeScript | Identical algorithm in PHP — cross-SDK compatible |
 
-The PHP SDK covers the full Querri API. Use `$client->asUser($session)` for FGA-filtered, per-user access to projects, dashboards, and other resources.
+Both SDKs cover the full Querri API and support `asUser()` for FGA-filtered, per-user access to projects, dashboards, sources, data, and chats.
