@@ -17,9 +17,12 @@ final class KeysResource extends BaseResource
         return $this->post('/keys', $params);
     }
 
-    public function list(): array
+    /**
+     * @param array{limit?: int, after?: string}|null $params
+     */
+    public function list(?array $params = null): array
     {
-        return $this->get('/keys');
+        return $this->get('/keys', $params);
     }
 
     public function retrieve(string $keyId): array

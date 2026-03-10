@@ -9,14 +9,20 @@ namespace Querri\Embed\Resources;
  */
 final class SourcesResource extends BaseResource
 {
-    public function listConnectors(): array
+    /**
+     * @param array{limit?: int, after?: string}|null $params
+     */
+    public function listConnectors(?array $params = null): array
     {
-        return $this->get('/connectors');
+        return $this->get('/connectors', $params);
     }
 
-    public function list(): array
+    /**
+     * @param array{limit?: int, after?: string}|null $params
+     */
+    public function list(?array $params = null): array
     {
-        return $this->get('/sources');
+        return $this->get('/sources', $params);
     }
 
     /**

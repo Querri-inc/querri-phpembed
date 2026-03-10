@@ -23,9 +23,12 @@ final class ChatsResource extends BaseResource
         );
     }
 
-    public function list(string $projectId): array
+    /**
+     * @param array{limit?: int, after?: string}|null $params
+     */
+    public function list(string $projectId, ?array $params = null): array
     {
-        return $this->get('/projects/' . rawurlencode($projectId) . '/chats');
+        return $this->get('/projects/' . rawurlencode($projectId) . '/chats', $params);
     }
 
     public function retrieve(string $projectId, string $chatId): array

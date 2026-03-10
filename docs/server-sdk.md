@@ -153,6 +153,16 @@ The SDK auto-creates and caches a named access policy from this specification.
   - [Users](#users)
   - [Embed](#embed)
   - [Policies](#policies)
+  - [Dashboards](#dashboards)
+  - [Projects](#projects)
+  - [Chats](#chats)
+  - [Data](#data)
+  - [Sources](#sources)
+  - [Files](#files)
+  - [Keys](#keys)
+  - [Audit](#audit)
+  - [Usage](#usage)
+  - [Sharing](#sharing)
 - [User-Scoped Client (`asUser`)](#user-scoped-client-asuser)
 - [getSession() Deep Dive](#getsession-deep-dive)
 - [Error Handling](#error-handling)
@@ -313,6 +323,18 @@ $user = $client->users->getOrCreate('usr_alice', [
 ]);
 ```
 
+#### `$client->users->removeExternalId($externalId)`
+
+Remove an external ID mapping without deleting the user.
+
+```php
+removeExternalId(string $externalId): array
+```
+
+```php
+$result = $client->users->removeExternalId('usr_alice');
+```
+
 ---
 
 ### Embed
@@ -348,17 +370,23 @@ refreshSession(string $sessionToken): array
 $refreshed = $client->embed->refreshSession('sess_token_...');
 ```
 
-#### `$client->embed->listSessions($limit)`
+#### `$client->embed->listSessions($params)`
 
-List active embed sessions.
+List active embed sessions. Uses cursor pagination.
 
 ```php
-listSessions(?int $limit = null): array
+listSessions(?array $params = null): array
 ```
 
 ```php
-$sessions = $client->embed->listSessions(50);
-// ['data' => [...], 'count' => 12]
+$sessions = $client->embed->listSessions(['limit' => 50]);
+// ['data' => [...], 'has_more' => true, 'next_cursor' => 'cur_...']
+
+// Paginate with cursor
+$next = $client->embed->listSessions([
+    'limit' => 50,
+    'after' => $sessions['next_cursor'],
+]);
 ```
 
 #### `$client->embed->revokeSession($sessionId)`
@@ -372,6 +400,19 @@ revokeSession(string $sessionId): array
 ```php
 $result = $client->embed->revokeSession('sess_abc');
 // ['session_id' => 'sess_abc', 'revoked' => true]
+```
+
+#### `$client->embed->revokeUserSessions($userId)`
+
+Revoke all active embed sessions for a given user. Returns the number of sessions revoked.
+
+```php
+revokeUserSessions(string $userId): int
+```
+
+```php
+$count = $client->embed->revokeUserSessions('user_abc123');
+// 3
 ```
 
 ---
@@ -499,6 +540,789 @@ columns(?string $sourceId = null): array
 ```php
 $cols = $client->policies->columns('src_1');
 // [['source_id' => ..., 'source_name' => ..., 'columns' => [['name' => ..., 'type' => ...]]]]
+```
+
+---
+
+### Dashboards
+
+Manage dashboards.
+
+#### `$client->dashboards->list($params)`
+
+List dashboards. Optionally filter by user.
+
+```php
+list(?array $params = null): array
+```
+
+```php
+$dashboards = $client->dashboards->list();
+$dashboards = $client->dashboards->list(['user_id' => 'user_abc123', 'limit' => 20]);
+// ['data' => [...], 'has_more' => false]
+```
+
+#### `$client->dashboards->create($params)`
+
+Create a new dashboard.
+
+```php
+create(array $params): array
+```
+
+```php
+$dashboard = $client->dashboards->create([
+    'name' => 'Sales Overview',
+    'description' => 'Monthly sales metrics',
+]);
+```
+
+#### `$client->dashboards->retrieve($dashboardId)`
+
+Fetch a single dashboard by ID.
+
+```php
+retrieve(string $dashboardId): array
+```
+
+```php
+$dashboard = $client->dashboards->retrieve('dash_abc123');
+```
+
+#### `$client->dashboards->update($dashboardId, $params)`
+
+Update an existing dashboard.
+
+```php
+update(string $dashboardId, array $params): array
+```
+
+```php
+$client->dashboards->update('dash_abc123', ['name' => 'Updated Name']);
+```
+
+#### `$client->dashboards->del($dashboardId)`
+
+Delete a dashboard.
+
+```php
+del(string $dashboardId): array
+```
+
+```php
+$client->dashboards->del('dash_abc123');
+```
+
+#### `$client->dashboards->refresh($dashboardId)`
+
+Trigger a data refresh for a dashboard.
+
+```php
+refresh(string $dashboardId): array
+```
+
+```php
+$client->dashboards->refresh('dash_abc123');
+```
+
+#### `$client->dashboards->refreshStatus($dashboardId)`
+
+Check the status of a dashboard refresh.
+
+```php
+refreshStatus(string $dashboardId): array
+```
+
+```php
+$status = $client->dashboards->refreshStatus('dash_abc123');
+```
+
+---
+
+### Projects
+
+Manage analysis projects.
+
+#### `$client->projects->list($params)`
+
+List projects. Optionally filter by user.
+
+```php
+list(?array $params = null): array
+```
+
+```php
+$projects = $client->projects->list();
+$projects = $client->projects->list(['user_id' => 'user_abc123', 'limit' => 20]);
+// ['data' => [...], 'has_more' => false]
+```
+
+#### `$client->projects->create($params)`
+
+Create a new project.
+
+```php
+create(array $params): array
+```
+
+```php
+$project = $client->projects->create([
+    'name' => 'Q1 Analysis',
+    'description' => 'Quarterly revenue analysis',
+    'user_id' => 'user_abc123',
+]);
+```
+
+#### `$client->projects->retrieve($projectId)`
+
+Fetch a single project by ID.
+
+```php
+retrieve(string $projectId): array
+```
+
+```php
+$project = $client->projects->retrieve('proj_abc123');
+```
+
+#### `$client->projects->update($projectId, $params)`
+
+Update an existing project.
+
+```php
+update(string $projectId, array $params): array
+```
+
+```php
+$client->projects->update('proj_abc123', ['name' => 'Updated Name']);
+```
+
+#### `$client->projects->del($projectId)`
+
+Delete a project.
+
+```php
+del(string $projectId): array
+```
+
+```php
+$client->projects->del('proj_abc123');
+```
+
+#### `$client->projects->run($projectId, $params)`
+
+Run a project analysis.
+
+```php
+run(string $projectId, array $params): array
+```
+
+```php
+$result = $client->projects->run('proj_abc123', ['user_id' => 'user_abc123']);
+```
+
+#### `$client->projects->runStatus($projectId)`
+
+Check the status of a running project.
+
+```php
+runStatus(string $projectId): array
+```
+
+```php
+$status = $client->projects->runStatus('proj_abc123');
+```
+
+#### `$client->projects->runCancel($projectId)`
+
+Cancel a running project.
+
+```php
+runCancel(string $projectId): array
+```
+
+```php
+$client->projects->runCancel('proj_abc123');
+```
+
+#### `$client->projects->listSteps($projectId)`
+
+List the steps in a project.
+
+```php
+listSteps(string $projectId): array
+```
+
+```php
+$steps = $client->projects->listSteps('proj_abc123');
+```
+
+#### `$client->projects->getStepData($projectId, $stepId, $params)`
+
+Get the output data for a specific step.
+
+```php
+getStepData(string $projectId, string $stepId, ?array $params = null): array
+```
+
+```php
+$data = $client->projects->getStepData('proj_abc123', 'step_1', [
+    'page' => 1,
+    'page_size' => 50,
+]);
+```
+
+---
+
+### Chats
+
+Manage chats within projects.
+
+> **Note:** Chat streaming (SSE) is not supported in the PHP SDK. Use the [JS SDK](https://www.npmjs.com/package/@querri-inc/embed) for streaming chat responses.
+
+#### `$client->chats->create($projectId, $params)`
+
+Create a new chat in a project.
+
+```php
+create(string $projectId, array $params = []): array
+```
+
+```php
+$chat = $client->chats->create('proj_abc123', ['name' => 'Revenue Discussion']);
+```
+
+#### `$client->chats->list($projectId, $params)`
+
+List chats in a project.
+
+```php
+list(string $projectId, ?array $params = null): array
+```
+
+```php
+$chats = $client->chats->list('proj_abc123');
+$chats = $client->chats->list('proj_abc123', ['limit' => 10]);
+// ['data' => [...], 'has_more' => false]
+```
+
+#### `$client->chats->retrieve($projectId, $chatId)`
+
+Fetch a single chat by ID.
+
+```php
+retrieve(string $projectId, string $chatId): array
+```
+
+```php
+$chat = $client->chats->retrieve('proj_abc123', 'chat_456');
+```
+
+#### `$client->chats->del($projectId, $chatId)`
+
+Delete a chat.
+
+```php
+del(string $projectId, string $chatId): array
+```
+
+```php
+$client->chats->del('proj_abc123', 'chat_456');
+```
+
+#### `$client->chats->cancel($projectId, $chatId)`
+
+Cancel a running chat.
+
+```php
+cancel(string $projectId, string $chatId): array
+```
+
+```php
+$client->chats->cancel('proj_abc123', 'chat_456');
+```
+
+---
+
+### Data
+
+Query data sources and manage uploaded data.
+
+#### `$client->data->listSources($params)`
+
+List data sources.
+
+```php
+listSources(?array $params = null): array
+```
+
+```php
+$sources = $client->data->listSources();
+$sources = $client->data->listSources(['limit' => 50]);
+// ['data' => [...], 'has_more' => false]
+```
+
+#### `$client->data->getSource($sourceId)`
+
+Fetch a single data source by ID.
+
+```php
+getSource(string $sourceId): array
+```
+
+```php
+$source = $client->data->getSource('src_abc123');
+```
+
+#### `$client->data->createSource($params)`
+
+Create a new data source with inline data.
+
+```php
+createSource(array $params): array
+```
+
+```php
+$source = $client->data->createSource([
+    'name' => 'Sales Data',
+    'rows' => [
+        ['region' => 'US', 'revenue' => 1000],
+        ['region' => 'EU', 'revenue' => 2000],
+    ],
+]);
+```
+
+#### `$client->data->appendRows($sourceId, $params)`
+
+Append rows to an existing data source.
+
+```php
+appendRows(string $sourceId, array $params): array
+```
+
+```php
+$client->data->appendRows('src_abc123', [
+    'rows' => [
+        ['region' => 'APAC', 'revenue' => 1500],
+    ],
+]);
+```
+
+#### `$client->data->replaceData($sourceId, $params)`
+
+Replace all data in a source.
+
+```php
+replaceData(string $sourceId, array $params): array
+```
+
+```php
+$client->data->replaceData('src_abc123', [
+    'rows' => [
+        ['region' => 'US', 'revenue' => 1200],
+        ['region' => 'EU', 'revenue' => 2100],
+    ],
+]);
+```
+
+#### `$client->data->deleteSource($sourceId)`
+
+Delete a data source.
+
+```php
+deleteSource(string $sourceId): array
+```
+
+```php
+$client->data->deleteSource('src_abc123');
+```
+
+#### `$client->data->query($params)`
+
+Run a SQL query against a data source with RLS enforcement.
+
+```php
+query(array $params): array
+```
+
+```php
+$result = $client->data->query([
+    'sql' => 'SELECT region, SUM(revenue) FROM sales GROUP BY region',
+    'source_id' => 'src_abc123',
+]);
+```
+
+#### `$client->data->getSourceData($sourceId, $params)`
+
+Get raw data from a source with optional pagination.
+
+```php
+getSourceData(string $sourceId, ?array $params = null): array
+```
+
+```php
+$data = $client->data->getSourceData('src_abc123', [
+    'page' => 1,
+    'page_size' => 100,
+]);
+```
+
+---
+
+### Sources
+
+Manage data source connectors and syncing.
+
+#### `$client->sources->listConnectors($params)`
+
+List available connectors.
+
+```php
+listConnectors(?array $params = null): array
+```
+
+```php
+$connectors = $client->sources->listConnectors();
+// ['data' => [...], 'has_more' => false]
+```
+
+#### `$client->sources->list($params)`
+
+List configured sources.
+
+```php
+list(?array $params = null): array
+```
+
+```php
+$sources = $client->sources->list(['limit' => 50]);
+// ['data' => [...], 'has_more' => false]
+```
+
+#### `$client->sources->create($params)`
+
+Create a new source from a connector.
+
+```php
+create(array $params): array
+```
+
+```php
+$source = $client->sources->create([
+    'name' => 'Production DB',
+    'connector_id' => 'conn_postgres',
+    'config' => ['host' => 'db.example.com', 'database' => 'analytics'],
+]);
+```
+
+#### `$client->sources->update($sourceId, $params)`
+
+Update a source configuration.
+
+```php
+update(string $sourceId, array $params): array
+```
+
+```php
+$client->sources->update('src_abc123', ['name' => 'Staging DB']);
+```
+
+#### `$client->sources->del($sourceId)`
+
+Delete a source.
+
+```php
+del(string $sourceId): array
+```
+
+```php
+$client->sources->del('src_abc123');
+```
+
+#### `$client->sources->sync($sourceId)`
+
+Trigger a sync for a source.
+
+```php
+sync(string $sourceId): array
+```
+
+```php
+$client->sources->sync('src_abc123');
+```
+
+---
+
+### Files
+
+Manage uploaded files.
+
+#### `$client->files->list($params)`
+
+List files.
+
+```php
+list(?array $params = null): array
+```
+
+```php
+$files = $client->files->list(['limit' => 20]);
+// ['data' => [...], 'has_more' => false]
+```
+
+#### `$client->files->retrieve($fileId)`
+
+Fetch a single file by ID.
+
+```php
+retrieve(string $fileId): array
+```
+
+```php
+$file = $client->files->retrieve('file_abc123');
+```
+
+#### `$client->files->del($fileId)`
+
+Delete a file.
+
+```php
+del(string $fileId): array
+```
+
+```php
+$client->files->del('file_abc123');
+```
+
+---
+
+### Keys
+
+Manage API keys.
+
+#### `$client->keys->create($params)`
+
+Create a new API key.
+
+```php
+create(array $params): array
+```
+
+```php
+$key = $client->keys->create([
+    'name' => 'Production Key',
+    'scopes' => ['data:read', 'data:write'],
+    'expires_in_days' => 90,
+]);
+```
+
+#### `$client->keys->list($params)`
+
+List API keys.
+
+```php
+list(?array $params = null): array
+```
+
+```php
+$keys = $client->keys->list(['limit' => 50]);
+// ['data' => [...], 'has_more' => false]
+```
+
+#### `$client->keys->retrieve($keyId)`
+
+Fetch a single API key by ID.
+
+```php
+retrieve(string $keyId): array
+```
+
+```php
+$key = $client->keys->retrieve('key_abc123');
+```
+
+#### `$client->keys->revoke($keyId)`
+
+Revoke an API key.
+
+```php
+revoke(string $keyId): array
+```
+
+```php
+$client->keys->revoke('key_abc123');
+```
+
+---
+
+### Audit
+
+Query the audit log.
+
+#### `$client->audit->listEvents($params)`
+
+List audit events with optional filters.
+
+```php
+listEvents(?array $params = null): array
+```
+
+```php
+$events = $client->audit->listEvents([
+    'actor_id' => 'user_abc123',
+    'action' => 'user.created',
+    'start_date' => '2025-01-01',
+    'end_date' => '2025-12-31',
+    'limit' => 50,
+]);
+// ['data' => [...], 'has_more' => true, 'next_cursor' => 'cur_...']
+```
+
+---
+
+### Usage
+
+Query usage metrics.
+
+#### `$client->usage->getOrgUsage($period)`
+
+Get organization-wide usage metrics.
+
+```php
+getOrgUsage(string $period = 'current_month'): array
+```
+
+```php
+$usage = $client->usage->getOrgUsage();
+$usage = $client->usage->getOrgUsage('last_30_days');
+// Period values: 'current_month', 'last_month', 'last_30_days'
+```
+
+#### `$client->usage->getUserUsage($userId, $period)`
+
+Get usage metrics for a specific user.
+
+```php
+getUserUsage(string $userId, string $period = 'current_month'): array
+```
+
+```php
+$usage = $client->usage->getUserUsage('user_abc123');
+$usage = $client->usage->getUserUsage('user_abc123', 'last_month');
+```
+
+---
+
+### Sharing
+
+Grant, revoke, and list access to projects, dashboards, and sources.
+
+#### `$client->sharing->shareProject($projectId, $params)`
+
+Grant a user access to a project.
+
+```php
+shareProject(string $projectId, array $params): array
+```
+
+```php
+$client->sharing->shareProject('proj_abc123', [
+    'user_id' => 'user_abc123',
+    'permission' => 'view',  // 'view' or 'edit'
+]);
+```
+
+#### `$client->sharing->revokeProjectShare($projectId, $userId)`
+
+Revoke a user's access to a project.
+
+```php
+revokeProjectShare(string $projectId, string $userId): array
+```
+
+```php
+$client->sharing->revokeProjectShare('proj_abc123', 'user_abc123');
+```
+
+#### `$client->sharing->listProjectShares($projectId)`
+
+List all users with access to a project.
+
+```php
+listProjectShares(string $projectId): array
+```
+
+```php
+$shares = $client->sharing->listProjectShares('proj_abc123');
+```
+
+#### `$client->sharing->shareDashboard($dashboardId, $params)`
+
+Grant a user access to a dashboard.
+
+```php
+shareDashboard(string $dashboardId, array $params): array
+```
+
+```php
+$client->sharing->shareDashboard('dash_abc123', [
+    'user_id' => 'user_abc123',
+    'permission' => 'view',
+]);
+```
+
+#### `$client->sharing->revokeDashboardShare($dashboardId, $userId)`
+
+Revoke a user's access to a dashboard.
+
+```php
+revokeDashboardShare(string $dashboardId, string $userId): array
+```
+
+```php
+$client->sharing->revokeDashboardShare('dash_abc123', 'user_abc123');
+```
+
+#### `$client->sharing->listDashboardShares($dashboardId)`
+
+List all users with access to a dashboard.
+
+```php
+listDashboardShares(string $dashboardId): array
+```
+
+```php
+$shares = $client->sharing->listDashboardShares('dash_abc123');
+```
+
+#### `$client->sharing->shareSource($sourceId, $params)`
+
+Grant a user access to a source.
+
+```php
+shareSource(string $sourceId, array $params): array
+```
+
+```php
+$client->sharing->shareSource('src_abc123', [
+    'user_id' => 'user_abc123',
+    'permission' => 'view',
+]);
+```
+
+#### `$client->sharing->orgShareSource($sourceId, $params)`
+
+Enable or disable org-wide sharing for a source.
+
+```php
+orgShareSource(string $sourceId, array $params): array
+```
+
+```php
+$client->sharing->orgShareSource('src_abc123', [
+    'enabled' => true,
+    'permission' => 'view',
+]);
 ```
 
 ---
@@ -764,7 +1588,7 @@ All `ApiException` subclasses expose:
 | `$headers` | `array` | Response headers |
 | `$requestId` | `string\|null` | Request ID for support tickets |
 | `$type` | `string\|null` | Error type from the API |
-| `$code` | `string\|null` | Error code from the API |
+| `$errorCode` | `string\|null` | Error code from the API |
 | `$docUrl` | `string\|null` | Link to relevant documentation |
 
 ### Common Patterns
@@ -892,7 +1716,7 @@ try {
     echo json_encode($session);
 } catch (ApiException $e) {
     http_response_code($e->status >= 400 ? $e->status : 500);
-    echo json_encode(['error' => $e->getMessage(), 'code' => $e->code]);
+    echo json_encode(['error' => $e->getMessage(), 'code' => $e->errorCode]);
 } catch (QuerriException $e) {
     http_response_code(500);
     echo json_encode(['error' => $e->getMessage()]);
@@ -1218,7 +2042,7 @@ export default function App() {
 | Framework helpers | `createSessionHandler()` for Next.js, SvelteKit, etc. | Use your framework's routing directly |
 | Async iteration | `for await...of` on paginated results | Not applicable (synchronous) |
 | Streaming | `ChatStream` for SSE responses | Not implemented (embed-focused) |
-| Additional resources | Projects, Chats, Dashboards, Data, Files, Sources, Keys, Sharing, Audit, Usage | All of the same, plus `asUser()` for FGA-filtered access |
+| Additional resources | Full API coverage | Full API coverage, plus `asUser()` for FGA-filtered access |
 | Config keys | `camelCase` only | Both `camelCase` and `snake_case` accepted |
 | HTTP client | Built-in `fetch` | Symfony HttpClient (HTTP/2 native) |
 | Policy hash | `hashAccessSpec()` in TypeScript | Identical algorithm in PHP — cross-SDK compatible |

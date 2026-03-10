@@ -47,7 +47,7 @@ try {
         // ─── Embed ───────────────────────────────────────
         'embed.createSession'      => $client->embed->createSession($params),
         'embed.refreshSession'     => $client->embed->refreshSession($params['session_token']),
-        'embed.listSessions'       => $client->embed->listSessions($params['limit'] ?? null),
+        'embed.listSessions'       => $client->embed->listSessions($params ?: null),
         'embed.revokeSession'      => $client->embed->revokeSession($params['session_id']),
         'embed.revokeUserSessions' => ['revoked' => $client->embed->revokeUserSessions($params['user_id'])],
 
@@ -89,14 +89,18 @@ try {
 
         // ─── Chats ───────────────────────────────────────
         'chats.create'   => $client->chats->create($params['project_id'], $params['data'] ?? []),
-        'chats.list'     => $client->chats->list($params['project_id']),
+        'chats.list'     => $client->chats->list($params['project_id'], $params['data'] ?? null),
         'chats.retrieve' => $client->chats->retrieve($params['project_id'], $params['chat_id']),
         'chats.del'      => $client->chats->del($params['project_id'], $params['chat_id']),
         'chats.cancel'   => $client->chats->cancel($params['project_id'], $params['chat_id']),
 
         // ─── Data ────────────────────────────────────────
-        'data.listSources'   => $client->data->listSources(),
+        'data.listSources'   => $client->data->listSources($params ?: null),
         'data.getSource'     => $client->data->getSource($params['source_id']),
+        'data.createSource'  => $client->data->createSource($params),
+        'data.appendRows'    => $client->data->appendRows($params['source_id'], ['rows' => $params['rows']]),
+        'data.replaceData'   => $client->data->replaceData($params['source_id'], ['rows' => $params['rows']]),
+        'data.deleteSource'  => $client->data->deleteSource($params['source_id']),
         'data.query'         => $client->data->query($params),
         'data.getSourceData' => $client->data->getSourceData(
             $params['source_id'],
@@ -104,21 +108,21 @@ try {
         ),
 
         // ─── Sources & Connectors ────────────────────────
-        'sources.listConnectors' => $client->sources->listConnectors(),
-        'sources.list'           => $client->sources->list(),
+        'sources.listConnectors' => $client->sources->listConnectors($params ?: null),
+        'sources.list'           => $client->sources->list($params ?: null),
         'sources.create'         => $client->sources->create($params),
         'sources.update'         => $client->sources->update($params['source_id'], $params['data'] ?? []),
         'sources.del'            => $client->sources->del($params['source_id']),
         'sources.sync'           => $client->sources->sync($params['source_id']),
 
         // ─── Files ───────────────────────────────────────
-        'files.list'     => $client->files->list(),
+        'files.list'     => $client->files->list($params ?: null),
         'files.retrieve' => $client->files->retrieve($params['file_id']),
         'files.del'      => $client->files->del($params['file_id']),
 
         // ─── API Keys ────────────────────────────────────
         'keys.create'  => $client->keys->create($params),
-        'keys.list'    => $client->keys->list(),
+        'keys.list'    => $client->keys->list($params ?: null),
         'keys.retrieve'=> $client->keys->retrieve($params['key_id']),
         'keys.revoke'  => $client->keys->revoke($params['key_id']),
 
@@ -136,6 +140,8 @@ try {
         'sharing.shareDashboard'        => $client->sharing->shareDashboard($params['dashboard_id'], ['user_id' => $params['user_id'], 'permission' => $params['permission'] ?? 'view']),
         'sharing.revokeDashboardShare'  => $client->sharing->revokeDashboardShare($params['dashboard_id'], $params['user_id']),
         'sharing.listDashboardShares'   => $client->sharing->listDashboardShares($params['dashboard_id']),
+        'sharing.shareSource'           => $client->sharing->shareSource($params['source_id'], ['user_id' => $params['user_id'], 'permission' => $params['permission'] ?? 'view']),
+        'sharing.orgShareSource'        => $client->sharing->orgShareSource($params['source_id'], ['enabled' => $params['enabled'], 'permission' => $params['permission'] ?? 'view']),
 
         default => throw new \InvalidArgumentException("Unknown action: {$action}"),
     };

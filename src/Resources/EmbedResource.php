@@ -41,12 +41,15 @@ final class EmbedResource extends BaseResource
 
     /**
      * List active embed sessions.
+     *
+     * @param array{limit?: int, after?: string}|null $params
      */
-    public function listSessions(?int $limit = null): array
+    public function listSessions(?array $params = null): array
     {
-        return $this->get('/embed/sessions', [
-            'limit' => $limit ?? 100,
-        ]);
+        return $this->get('/embed/sessions', array_merge(
+            ['limit' => 100],
+            $params ?? [],
+        ));
     }
 
     /**
@@ -59,6 +62,9 @@ final class EmbedResource extends BaseResource
 
     /**
      * Revoke all embed sessions for a given user ID.
+     *
+     * Note: The embed sessions endpoint uses Redis SCAN and always returns
+     * has_more=false, so a single request fetches all available sessions.
      *
      * @return int Number of sessions revoked
      */

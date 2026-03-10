@@ -29,19 +29,31 @@ class ApiException extends QuerriException
     /**
      * Create from an HTTP response. Extracts message, request ID, and error
      * metadata (type, code, doc_url) from the response body.
+     *
+     * Supports both the legacy flat format and the Stripe-style nested format:
+     *   {"error": {"type": "...", "code": "...", "message": "...", "request_id": "req_..."}}
      */
     public static function fromResponse(int $status, mixed $body, array $headers): static
     {
         $message = self::extractMessage($status, $body);
         $requestId = $headers['x-request-id'][0] ?? $headers['x-request-id'] ?? null;
         $type = null;
-        $code = null;
+        $errorCode = null;
         $docUrl = null;
 
         if (is_array($body)) {
-            $type = is_string($body['type'] ?? null) ? $body['type'] : null;
-            $errorCode = is_string($body['code'] ?? null) ? $body['code'] : null;
-            $docUrl = is_string($body['doc_url'] ?? null) ? $body['doc_url'] : null;
+            // Stripe-style nested error object (primary format)
+            $error = is_array($body['error'] ?? null) ? $body['error'] : null;
+            $source = $error ?? $body;
+
+            $type = is_string($source['type'] ?? null) ? $source['type'] : null;
+            $errorCode = is_string($source['code'] ?? null) ? $source['code'] : null;
+            $docUrl = is_string($source['doc_url'] ?? null) ? $source['doc_url'] : null;
+
+            // Fall back to body request_id when header is absent
+            if ($requestId === null && $error !== null) {
+                $requestId = is_string($error['request_id'] ?? null) ? $error['request_id'] : null;
+            }
         }
 
         return new static(
@@ -83,19 +95,19 @@ class ApiException extends QuerriException
 
     /**
      * Extract a human-readable message from the API response body.
-     * Checks body.error (string), body.message, body.error.message, in that order.
+     * Prefers nested error.message (Stripe-style), then flat body.message, then body.error (string).
      */
     protected static function extractMessage(int $status, mixed $body): string
     {
         if (is_array($body)) {
-            if (is_string($body['error'] ?? null)) {
-                return $body['error'];
+            if (is_array($body['error'] ?? null) && is_string($body['error']['message'] ?? null)) {
+                return $body['error']['message'];
             }
             if (is_string($body['message'] ?? null)) {
                 return $body['message'];
             }
-            if (is_array($body['error'] ?? null) && is_string($body['error']['message'] ?? null)) {
-                return $body['error']['message'];
+            if (is_string($body['error'] ?? null)) {
+                return $body['error'];
             }
         }
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Querri\Embed\Resources;
 
 /**
- * Sharing / Permissions API — grant, revoke, and list access to projects and dashboards.
+ * Sharing / Permissions API — grant, revoke, and list access to projects, dashboards, and sources.
  */
 final class SharingResource extends BaseResource
 {
@@ -51,5 +51,27 @@ final class SharingResource extends BaseResource
     public function listDashboardShares(string $dashboardId): array
     {
         return $this->get('/dashboards/' . rawurlencode($dashboardId) . '/shares');
+    }
+
+    // ─── Sources ──────────────────────────────────────────
+
+    /**
+     * Grant access to a source.
+     *
+     * @param array{user_id: string, permission?: string} $params  permission: "view"|"edit"
+     */
+    public function shareSource(string $sourceId, array $params): array
+    {
+        return $this->post('/sources/' . rawurlencode($sourceId) . '/shares', $params);
+    }
+
+    /**
+     * Enable or disable org-wide sharing for a source.
+     *
+     * @param array{enabled: bool, permission?: string} $params  permission: "view"|"edit"
+     */
+    public function orgShareSource(string $sourceId, array $params): array
+    {
+        return $this->post('/sources/' . rawurlencode($sourceId) . '/org-share', $params);
     }
 }
