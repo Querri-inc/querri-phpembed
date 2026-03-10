@@ -52,9 +52,11 @@ final class GetSession
         if ($access !== null) {
             $policyIds = self::resolveAccess($client, $access);
 
-            foreach ($policyIds as $policyId) {
-                $client->policies->assignUsers($policyId, [$userId]);
-            }
+            // Atomically replace all policy assignments for this user.
+            // This removes any previously assigned policies (e.g., from a prior
+            // getSession() call with different filters) and assigns exactly the
+            // new set, preventing policy accumulation.
+            $client->policies->replaceUserPolicies($userId, $policyIds);
         }
 
         // --- Step 3: Create Embed Session ---

@@ -217,6 +217,16 @@ const policiesMethods: MethodDef[] = [
     ],
   },
   {
+    action: 'policies.replaceUserPolicies',
+    label: 'Replace User Policies',
+    description: 'PUT /access/users/{id}/policies — atomically replace all policy assignments for a user',
+    httpMethod: 'PUT',
+    fields: [
+      { name: 'user_id', label: 'User ID', type: 'text', required: true, placeholder: 'user_01H...' },
+      { name: 'policy_ids', label: 'Policy IDs (comma-separated)', type: 'text', required: true, placeholder: 'pol_abc, pol_def' },
+    ],
+  },
+  {
     action: 'policies.resolve',
     label: 'Resolve Access',
     description: 'POST /access/resolve — resolve effective filters for a user + source',
