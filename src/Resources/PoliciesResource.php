@@ -77,6 +77,21 @@ final class PoliciesResource extends BaseResource
     }
 
     /**
+     * Atomically replace ALL policy assignments for a user.
+     *
+     * Removes every existing assignment, then assigns exactly the listed
+     * policies. Pass an empty array to remove all policies.
+     *
+     * @param string[] $policyIds
+     */
+    public function replaceUserPolicies(string $userId, array $policyIds): array
+    {
+        return $this->put('/access/users/' . rawurlencode($userId) . '/policies', [
+            'policy_ids' => $policyIds,
+        ]);
+    }
+
+    /**
      * Resolve access for a user and data source.
      */
     public function resolve(string $userId, string $sourceId): array

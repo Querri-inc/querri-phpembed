@@ -27,7 +27,7 @@ const TOP_LEVEL_KEYS = new Set([
   'user_id', 'policy_id', 'external_id', 'session_id',
   'session_token', 'source_id', 'dashboard_id', 'project_id',
   'chat_id', 'step_id', 'file_id', 'key_id',
-  'limit', 'after', 'user_ids',
+  'limit', 'after', 'user_ids', 'policy_ids',
   'period', 'permission', 'page', 'page_size', 'enabled',
 ]);
 
@@ -142,8 +142,8 @@ export default function MethodCard({ method, onResponse }: MethodCardProps) {
             // Keep as string if not valid JSON
           }
         }
-        // user_ids special case: comma-separated → array
-        if (field.name === 'user_ids' && typeof parsed === 'string') {
+        // Comma-separated ID lists → array
+        if ((field.name === 'user_ids' || field.name === 'policy_ids') && typeof parsed === 'string') {
           parsed = parsed.split(',').map((s) => s.trim()).filter(Boolean);
         }
 

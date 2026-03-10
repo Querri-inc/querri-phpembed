@@ -63,8 +63,9 @@ try {
         'policies.update'      => $client->policies->update($params['policy_id'], $params['data'] ?? []),
         'policies.del'         => $client->policies->del($params['policy_id']),
         'policies.assignUsers' => $client->policies->assignUsers($params['policy_id'], $params['user_ids']),
-        'policies.removeUser'  => $client->policies->removeUser($params['policy_id'], $params['user_id']),
-        'policies.resolve'     => $client->policies->resolve($params['user_id'], $params['source_id']),
+        'policies.removeUser'          => $client->policies->removeUser($params['policy_id'], $params['user_id']),
+        'policies.replaceUserPolicies' => $client->policies->replaceUserPolicies($params['user_id'], $params['policy_ids']),
+        'policies.resolve'             => $client->policies->resolve($params['user_id'], $params['source_id']),
         'policies.columns'     => $client->policies->columns($params['source_id'] ?? null),
 
         // ─── Dashboards ──────────────────────────────────
