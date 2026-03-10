@@ -41,7 +41,12 @@ try {
         'users.retrieve'         => $client->users->retrieve($params['user_id']),
         'users.update'           => $client->users->update($params['user_id'], $params['data'] ?? []),
         'users.del'              => $client->users->del($params['user_id']),
-        'users.getOrCreate'      => $client->users->getOrCreate($params['external_id'], $params['data'] ?? null),
+        'users.getOrCreate'      => $client->users->getOrCreate($params['external_id'], array_filter([
+            'email' => $params['email'] ?? null,
+            'first_name' => $params['first_name'] ?? null,
+            'last_name' => $params['last_name'] ?? null,
+            'role' => $params['role'] ?? null,
+        ]) ?: null),
         'users.removeExternalId' => $client->users->removeExternalId($params['external_id']),
 
         // ─── Embed ───────────────────────────────────────
@@ -88,8 +93,8 @@ try {
         ),
 
         // ─── Chats ───────────────────────────────────────
-        'chats.create'   => $client->chats->create($params['project_id'], $params['data'] ?? []),
-        'chats.list'     => $client->chats->list($params['project_id'], $params['data'] ?? null),
+        'chats.create'   => $client->chats->create($params['project_id'], array_filter(['name' => $params['name'] ?? null])),
+        'chats.list'     => $client->chats->list($params['project_id'], array_filter(['limit' => $params['limit'] ?? null, 'after' => $params['after'] ?? null]) ?: null),
         'chats.retrieve' => $client->chats->retrieve($params['project_id'], $params['chat_id']),
         'chats.del'      => $client->chats->del($params['project_id'], $params['chat_id']),
         'chats.cancel'   => $client->chats->cancel($params['project_id'], $params['chat_id']),
@@ -141,7 +146,7 @@ try {
         'sharing.revokeDashboardShare'  => $client->sharing->revokeDashboardShare($params['dashboard_id'], $params['user_id']),
         'sharing.listDashboardShares'   => $client->sharing->listDashboardShares($params['dashboard_id']),
         'sharing.shareSource'           => $client->sharing->shareSource($params['source_id'], ['user_id' => $params['user_id'], 'permission' => $params['permission'] ?? 'view']),
-        'sharing.orgShareSource'        => $client->sharing->orgShareSource($params['source_id'], ['enabled' => $params['enabled'], 'permission' => $params['permission'] ?? 'view']),
+        'sharing.orgShareSource'        => $client->sharing->orgShareSource($params['source_id'], ['enabled' => filter_var($params['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN), 'permission' => $params['permission'] ?? 'view']),
 
         default => throw new \InvalidArgumentException("Unknown action: {$action}"),
     };

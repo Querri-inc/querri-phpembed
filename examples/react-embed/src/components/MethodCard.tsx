@@ -25,8 +25,10 @@ interface MethodCardProps {
 
 const TOP_LEVEL_KEYS = new Set([
   'user_id', 'policy_id', 'external_id', 'session_id',
-  'session_token', 'source_id', 'limit', 'after', 'name',
-  'user_ids',
+  'session_token', 'source_id', 'dashboard_id', 'project_id',
+  'chat_id', 'step_id', 'file_id', 'key_id',
+  'limit', 'after', 'user_ids',
+  'period', 'permission', 'page', 'page_size', 'enabled',
 ]);
 
 const badgeColors: Record<string, string> = {

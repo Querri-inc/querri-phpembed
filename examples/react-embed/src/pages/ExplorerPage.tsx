@@ -114,6 +114,7 @@ const embedMethods: MethodDef[] = [
     httpMethod: 'GET',
     fields: [
       { name: 'limit', label: 'Limit', type: 'number', placeholder: '100' },
+      { name: 'after', label: 'After (cursor)', type: 'text' },
     ],
   },
   {
@@ -146,6 +147,8 @@ const policiesMethods: MethodDef[] = [
     httpMethod: 'GET',
     fields: [
       { name: 'name', label: 'Name filter', type: 'text', placeholder: 'my-policy' },
+      { name: 'limit', label: 'Limit', type: 'number', placeholder: '20' },
+      { name: 'after', label: 'After (cursor)', type: 'text' },
     ],
   },
   {
@@ -242,6 +245,8 @@ const dashboardsMethods: MethodDef[] = [
     httpMethod: 'GET',
     fields: [
       { name: 'user_id', label: 'User ID (FGA filter)', type: 'text', placeholder: 'user_01H... or external-id' },
+      { name: 'limit', label: 'Limit', type: 'number', placeholder: '20' },
+      { name: 'after', label: 'After (cursor)', type: 'text' },
     ],
   },
   {
@@ -426,6 +431,8 @@ const chatsMethods: MethodDef[] = [
     httpMethod: 'GET',
     fields: [
       { name: 'project_id', label: 'Project ID', type: 'text', required: true },
+      { name: 'limit', label: 'Limit', type: 'number', placeholder: '20' },
+      { name: 'after', label: 'After (cursor)', type: 'text' },
     ],
   },
   {
@@ -467,13 +474,57 @@ const dataMethods: MethodDef[] = [
     label: 'List Data Sources',
     description: 'GET /data/sources — list available data sources',
     httpMethod: 'GET',
-    fields: [],
+    fields: [
+      { name: 'limit', label: 'Limit', type: 'number', placeholder: '20' },
+      { name: 'after', label: 'After (cursor)', type: 'text' },
+    ],
   },
   {
     action: 'data.getSource',
     label: 'Get Source',
     description: 'GET /data/sources/{id} — get source metadata and schema',
     httpMethod: 'GET',
+    fields: [
+      { name: 'source_id', label: 'Source ID', type: 'text', required: true },
+    ],
+  },
+  {
+    action: 'data.createSource',
+    label: 'Create Source',
+    description: 'POST /data/sources — create a data source with inline data',
+    httpMethod: 'POST',
+    fields: [
+      { name: 'name', label: 'Name', type: 'text', required: true, placeholder: 'Sales Data' },
+      { name: 'rows', label: 'Rows (JSON array)', type: 'textarea', required: true, placeholder: '[{"region":"US","revenue":1000}]' },
+    ],
+  },
+  {
+    action: 'data.appendRows',
+    label: 'Append Rows',
+    description: 'POST /data/sources/{id}/rows — add rows to existing source',
+    httpMethod: 'POST',
+    fields: [
+      { name: 'source_id', label: 'Source ID', type: 'text', required: true },
+      { name: 'rows', label: 'Rows (JSON array)', type: 'textarea', required: true, placeholder: '[{"region":"APAC","revenue":1500}]' },
+    ],
+  },
+  {
+    action: 'data.replaceData',
+    label: 'Replace Data',
+    description: 'PUT /data/sources/{id}/data — replace all data in a source',
+    httpMethod: 'PUT',
+    dangerous: true,
+    fields: [
+      { name: 'source_id', label: 'Source ID', type: 'text', required: true },
+      { name: 'rows', label: 'Rows (JSON array)', type: 'textarea', required: true, placeholder: '[{"region":"US","revenue":1200}]' },
+    ],
+  },
+  {
+    action: 'data.deleteSource',
+    label: 'Delete Source',
+    description: 'DELETE /data/sources/{id} — permanently delete a data source',
+    httpMethod: 'DELETE',
+    dangerous: true,
     fields: [
       { name: 'source_id', label: 'Source ID', type: 'text', required: true },
     ],
@@ -509,14 +560,20 @@ const sourcesMethods: MethodDef[] = [
     label: 'List Connectors',
     description: 'GET /connectors — list available connector types',
     httpMethod: 'GET',
-    fields: [],
+    fields: [
+      { name: 'limit', label: 'Limit', type: 'number', placeholder: '20' },
+      { name: 'after', label: 'After (cursor)', type: 'text' },
+    ],
   },
   {
     action: 'sources.list',
     label: 'List Sources',
     description: 'GET /sources — list configured data sources',
     httpMethod: 'GET',
-    fields: [],
+    fields: [
+      { name: 'limit', label: 'Limit', type: 'number', placeholder: '20' },
+      { name: 'after', label: 'After (cursor)', type: 'text' },
+    ],
   },
   {
     action: 'sources.create',
@@ -567,7 +624,10 @@ const filesMethods: MethodDef[] = [
     label: 'List Files',
     description: 'GET /files — list uploaded files',
     httpMethod: 'GET',
-    fields: [],
+    fields: [
+      { name: 'limit', label: 'Limit', type: 'number', placeholder: '20' },
+      { name: 'after', label: 'After (cursor)', type: 'text' },
+    ],
   },
   {
     action: 'files.retrieve',
@@ -608,7 +668,10 @@ const keysMethods: MethodDef[] = [
     label: 'List API Keys',
     description: 'GET /keys — list all API keys (no secrets)',
     httpMethod: 'GET',
-    fields: [],
+    fields: [
+      { name: 'limit', label: 'Limit', type: 'number', placeholder: '20' },
+      { name: 'after', label: 'After (cursor)', type: 'text' },
+    ],
   },
   {
     action: 'keys.retrieve',
@@ -643,8 +706,8 @@ const auditMethods: MethodDef[] = [
       { name: 'action', label: 'Action', type: 'text', placeholder: 'project.create' },
       { name: 'start_date', label: 'Start Date', type: 'text', placeholder: '2025-01-01' },
       { name: 'end_date', label: 'End Date', type: 'text', placeholder: '2025-12-31' },
-      { name: 'page', label: 'Page', type: 'number', placeholder: '1' },
-      { name: 'page_size', label: 'Page Size', type: 'number', placeholder: '50' },
+      { name: 'limit', label: 'Limit', type: 'number', placeholder: '50' },
+      { name: 'after', label: 'After (cursor)', type: 'text' },
     ],
   },
 ];
@@ -732,6 +795,28 @@ const sharingMethods: MethodDef[] = [
     httpMethod: 'GET',
     fields: [
       { name: 'dashboard_id', label: 'Dashboard ID', type: 'text', required: true },
+    ],
+  },
+  {
+    action: 'sharing.shareSource',
+    label: 'Share Source',
+    description: 'POST /sources/{id}/shares — grant user access to a source',
+    httpMethod: 'POST',
+    fields: [
+      { name: 'source_id', label: 'Source ID', type: 'text', required: true },
+      { name: 'user_id', label: 'User ID', type: 'text', required: true },
+      { name: 'permission', label: 'Permission', type: 'text', placeholder: 'view', defaultValue: 'view' },
+    ],
+  },
+  {
+    action: 'sharing.orgShareSource',
+    label: 'Org Share Source',
+    description: 'POST /sources/{id}/org-share — enable/disable org-wide source sharing',
+    httpMethod: 'POST',
+    fields: [
+      { name: 'source_id', label: 'Source ID', type: 'text', required: true },
+      { name: 'enabled', label: 'Enabled (true/false)', type: 'text', required: true, placeholder: 'true' },
+      { name: 'permission', label: 'Permission', type: 'text', placeholder: 'view', defaultValue: 'view' },
     ],
   },
 ];
