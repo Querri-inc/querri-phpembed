@@ -104,11 +104,14 @@ final class PoliciesResource extends BaseResource
 
     /**
      * List columns for a data source.
+     *
+     * @return array<int, array{source_id: string, source_name: string, columns: array}>
      */
     public function columns(?string $sourceId = null): array
     {
-        return $this->get('/access/columns', [
+        $response = $this->get('/access/columns', [
             'source_id' => $sourceId,
         ]);
+        return $response['data'] ?? $response;
     }
 }
