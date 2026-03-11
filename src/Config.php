@@ -12,6 +12,8 @@ use Querri\Embed\Exceptions\ConfigException;
  */
 final readonly class Config
 {
+    public const VERSION = '0.1.1';
+
     private function __construct(
         public string $apiKey,
         public ?string $orgId,
@@ -52,7 +54,7 @@ final readonly class Config
             baseUrl: $baseUrl,
             timeout: $timeout ?? 30.0,
             maxRetries: $maxRetries ?? 3,
-            userAgent: 'querri-php/0.1.1',
+            userAgent: 'querri-php/' . self::VERSION,
         );
     }
 
@@ -75,7 +77,7 @@ final readonly class Config
             baseUrl: "{$host}/api",
             timeout: $timeout ?? 30.0,
             maxRetries: $maxRetries ?? 3,
-            userAgent: 'querri-php/0.1.0',
+            userAgent: 'querri-php/' . self::VERSION,
             sessionToken: $sessionToken,
         );
     }
