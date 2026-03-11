@@ -38,8 +38,8 @@ if ($arg === null || in_array($arg, ['-h', '--help'], true)) {
 $configPath = __DIR__ . '/../src/Config.php';
 $config = file_get_contents($configPath);
 
-if (!preg_match("/userAgent:\s*'querri-php\/(\d+\.\d+\.\d+)'/", $config, $m)) {
-    fwrite(STDERR, "ERROR: Could not find version in src/Config.php\n");
+if (!preg_match("/const VERSION = '(\d+\.\d+\.\d+)'/", $config, $m)) {
+    fwrite(STDERR, "ERROR: Could not find VERSION constant in src/Config.php\n");
     exit(1);
 }
 
@@ -78,8 +78,8 @@ echo "New version:     {$newVersion}\n\n";
 $targets = [
     [
         'file'        => 'src/Config.php',
-        'pattern'     => "/userAgent:\s*'querri-php\/\d+\.\d+\.\d+'/",
-        'replacement' => "userAgent: 'querri-php/{$newVersion}'",
+        'pattern'     => "/const VERSION = '\d+\.\d+\.\d+'/",
+        'replacement' => "const VERSION = '{$newVersion}'",
     ],
     // Add test files here as they are created, e.g.:
     // [
