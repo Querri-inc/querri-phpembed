@@ -48,6 +48,7 @@ try {
             'sources' => ['src_sales_data'],
             'filters' => ['tenant_id' => $authUser->tenantId],
         ],
+        'origin' => $_SERVER['HTTP_ORIGIN'] ?? null,
         'ttl' => 3600,
     ]);
 
@@ -83,6 +84,7 @@ Route::post('/querri-session', function (Request $request) {
             'sources' => ['src_sales_data'],
             'filters' => ['tenant_id' => $user->tenant_id],
         ],
+        'origin' => $request->header('Origin'),
     ]);
 
     return response()->json($session);
@@ -98,6 +100,7 @@ namespace App\Controller;
 use Querri\Embed\QuerriClient;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -105,7 +108,7 @@ class QuerriSessionController extends AbstractController
 {
     #[Route('/api/querri-session', methods: ['POST'])]
     #[IsGranted('IS_AUTHENTICATED')]
-    public function __invoke(): JsonResponse
+    public function __invoke(Request $request): JsonResponse
     {
         $client = new QuerriClient();
         $user = $this->getUser();
@@ -119,6 +122,7 @@ class QuerriSessionController extends AbstractController
                 'sources' => ['src_sales_data'],
                 'filters' => ['tenant_id' => $user->getTenantId()],
             ],
+            'origin' => $request->headers->get('Origin'),
         ]);
 
         return $this->json($session);
@@ -1731,6 +1735,7 @@ try {
             'sources' => ['src_sales_data'],
             'filters' => ['tenant_id' => $authUser->tenantId],
         ],
+        'origin' => $_SERVER['HTTP_ORIGIN'] ?? null,
         'ttl' => 3600,
     ]);
 
@@ -1827,6 +1832,7 @@ Route::post('/querri-session', function (Request $request) {
                 'sources' => ['src_sales_data'],
                 'filters' => ['tenant_id' => $user->tenant_id],
             ],
+            'origin' => $request->header('Origin'),
             'ttl' => 3600,
         ]);
 
@@ -1914,6 +1920,7 @@ use Querri\Embed\Exceptions\ApiException;
 use Querri\Embed\Exceptions\QuerriException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -1921,7 +1928,7 @@ class QuerriSessionController extends AbstractController
 {
     #[Route('/api/querri-session', methods: ['POST'])]
     #[IsGranted('IS_AUTHENTICATED')]
-    public function __invoke(): JsonResponse
+    public function __invoke(Request $request): JsonResponse
     {
         $client = new QuerriClient();
         $user = $this->getUser();
@@ -1936,6 +1943,7 @@ class QuerriSessionController extends AbstractController
                     'sources' => ['src_sales_data'],
                     'filters' => ['tenant_id' => $user->getTenantId()],
                 ],
+                'origin' => $request->headers->get('Origin'),
             ]);
 
             return $this->json($session);
