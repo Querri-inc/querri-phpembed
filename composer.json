@@ -5,6 +5,13 @@
     "license": "MIT",
     "keywords": ["querri", "embed", "analytics", "sdk"],
     "homepage": "https://github.com/Querri-inc/querri-phpembed",
+    "authors": [
+        { "name": "Querri", "homepage": "https://querri.com" }
+    ],
+    "support": {
+        "issues": "https://github.com/Querri-inc/querri-phpembed/issues",
+        "source": "https://github.com/Querri-inc/querri-phpembed"
+    },
     "require": {
         "php": "^8.3",
         "symfony/http-client": "^7.2",

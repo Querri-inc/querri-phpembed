@@ -1,5 +1,9 @@
 # querri/embed — PHP SDK
 
+[![Packagist Version](https://img.shields.io/packagist/v/querri/embed.svg)](https://packagist.org/packages/querri/embed)
+[![PHP Version](https://img.shields.io/packagist/php-v/querri/embed.svg)](https://packagist.org/packages/querri/embed)
+[![License](https://img.shields.io/packagist/l/querri/embed.svg)](LICENSE)
+
 > Embed Querri analytics in your PHP application. One method call, zero config.
 
 **Laravel** | **Symfony** | **Plain PHP** | **WordPress**

@@ -12,7 +12,7 @@ use Querri\Embed\Exceptions\ConfigException;
  */
 final readonly class Config
 {
-    public const VERSION = '0.1.4';
+    public const VERSION = '0.1.5';
 
     private function __construct(
         public string $apiKey,

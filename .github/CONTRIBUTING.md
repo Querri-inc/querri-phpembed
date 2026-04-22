@@ -43,6 +43,20 @@ src/
 
 Please use the [bug report template](https://github.com/Querri-inc/querri-phpembed/issues/new?template=bug_report.md) when filing issues.
 
+## Releasing
+
+Releases publish to Packagist automatically via the `packagist.org/api/github` webhook on this repo. To cut a new version:
+
+1. Bump the version (updates `src/Config.php`, commits, and tags):
+   ```sh
+   composer version patch   # or: minor, major, or an explicit X.Y.Z
+   ```
+2. Push the commit and the tag:
+   ```sh
+   git push && git push --tags
+   ```
+3. The new version appears on <https://packagist.org/packages/querri/embed> within ~60 seconds.
+
 ## Code of conduct
 
 Be respectful and constructive. We're building something together — treat others the way you'd like to be treated.
