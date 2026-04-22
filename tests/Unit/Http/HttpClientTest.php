@@ -13,7 +13,6 @@ use Querri\Embed\Exceptions\ConflictException;
 use Querri\Embed\Exceptions\ConnectionException;
 use Querri\Embed\Exceptions\NotFoundException;
 use Querri\Embed\Exceptions\PermissionException;
-use Querri\Embed\Exceptions\RateLimitException;
 use Querri\Embed\Exceptions\ServerException;
 use Querri\Embed\Exceptions\TimeoutException;
 use Querri\Embed\Exceptions\ValidationException;
