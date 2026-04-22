@@ -11,6 +11,7 @@ final class UsageResource extends BaseResource
 {
     /**
      * @param string $period "current_month"|"last_month"|"last_30_days"
+     * @return array<string, mixed>
      */
     public function getOrgUsage(string $period = 'current_month'): array
     {
@@ -19,6 +20,7 @@ final class UsageResource extends BaseResource
 
     /**
      * @param string $period "current_month"|"last_month"|"last_30_days"
+     * @return array<string, mixed>
      */
     public function getUserUsage(string $userId, string $period = 'current_month'): array
     {

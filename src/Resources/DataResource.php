@@ -11,12 +11,16 @@ final class DataResource extends BaseResource
 {
     /**
      * @param array{limit?: int, after?: string}|null $params
+     * @return array{data: array<int, array<string, mixed>>, has_more: bool, next_cursor: string|null}
      */
     public function listSources(?array $params = null): array
     {
         return $this->get('/data/sources', $params);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function getSource(string $sourceId): array
     {
         return $this->get('/data/sources/' . rawurlencode($sourceId));
@@ -26,7 +30,7 @@ final class DataResource extends BaseResource
      * Create a data source with inline JSON rows.
      *
      * @param array{name: string, rows: array<array<string, mixed>>} $params
-     * @return array{id: string, name: string, columns: array, row_count: int, updated_at: string}
+     * @return array{id: string, name: string, columns: array<int, array<string, mixed>>, row_count: int, updated_at: string}
      */
     public function createSource(array $params): array
     {
@@ -37,6 +41,7 @@ final class DataResource extends BaseResource
      * Append rows to an existing data source. Columns are union-merged.
      *
      * @param array{rows: array<array<string, mixed>>} $params
+     * @return array<string, mixed>
      */
     public function appendRows(string $sourceId, array $params): array
     {
@@ -47,6 +52,7 @@ final class DataResource extends BaseResource
      * Replace all data in a source.
      *
      * @param array{rows: array<array<string, mixed>>} $params
+     * @return array<string, mixed>
      */
     public function replaceData(string $sourceId, array $params): array
     {
@@ -55,6 +61,8 @@ final class DataResource extends BaseResource
 
     /**
      * Delete a data source and all associated data, QDF, and FGA warrants.
+     *
+     * @return array<string, mixed>
      */
     public function deleteSource(string $sourceId): array
     {
@@ -65,6 +73,7 @@ final class DataResource extends BaseResource
      * Execute a SQL query against a data source.
      *
      * @param array{sql: string, source_id: string, page?: int, page_size?: int} $params
+     * @return array<string, mixed>
      */
     public function query(array $params): array
     {
@@ -73,6 +82,9 @@ final class DataResource extends BaseResource
 
     /**
      * Get paginated data from a source.
+     *
+     * @param array<string, mixed>|null $params
+     * @return array<string, mixed>
      */
     public function getSourceData(string $sourceId, ?array $params = null): array
     {

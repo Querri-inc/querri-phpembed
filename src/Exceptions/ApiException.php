@@ -12,6 +12,9 @@ namespace Querri\Embed\Exceptions;
  */
 class ApiException extends QuerriException
 {
+    /**
+     * @param array<string, array<int, string>|string> $headers
+     */
     public function __construct(
         string $message,
         public readonly int $status,
@@ -32,6 +35,8 @@ class ApiException extends QuerriException
      *
      * Supports both the legacy flat format and the Stripe-style nested format:
      *   {"error": {"type": "...", "code": "...", "message": "...", "request_id": "req_..."}}
+     *
+     * @param array<string, array<int, string>|string> $headers
      */
     public static function fromResponse(int $status, mixed $body, array $headers): static
     {
@@ -71,6 +76,8 @@ class ApiException extends QuerriException
     /**
      * Map an HTTP status code to a specific exception subclass and throw it.
      * Does nothing for status < 400.
+     *
+     * @param array<string, array<int, string>|string> $headers
      */
     public static function raiseForStatus(int $status, mixed $body, array $headers): void
     {

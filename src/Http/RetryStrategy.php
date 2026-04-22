@@ -58,6 +58,8 @@ final class RetryStrategy
     /**
      * Parse Retry-After header value (numeric seconds).
      * Symfony returns headers as array<string, string[]>, so we check [0] first.
+     *
+     * @param array<string, array<int, string>|string> $headers
      */
     public static function getRetryAfter(array $headers): ?float
     {

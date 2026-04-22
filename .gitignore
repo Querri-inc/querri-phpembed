@@ -6,3 +6,6 @@ package-lock.json
 *:Zone.Identifier
 .phpunit.result.cache
 .phpunit.cache/
+/.desloppify/
+/.claude/
+/scorecard.png

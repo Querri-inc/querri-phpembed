@@ -30,12 +30,14 @@ final class GetSession
      */
     public static function execute(QuerriClient $client, array $params): GetSessionResult
     {
+        // @phpstan-ignore isset.offset (runtime defense for untyped callers)
         if (!isset($params['user'])) {
             throw new ConfigException(
                 "The 'user' parameter is required for getSession().",
             );
         }
 
+        // @phpstan-ignore isset.offset, booleanAnd.alwaysFalse (runtime defense)
         if (is_array($params['user']) && !isset($params['user']['external_id'])) {
             throw new ConfigException(
                 "The 'external_id' field is required when 'user' is an array.",
@@ -81,6 +83,10 @@ final class GetSession
         );
     }
 
+    /**
+     * @param array<string, mixed> $params
+     * @return array<string, mixed>
+     */
     private static function resolveUser(QuerriClient $client, array $params): array
     {
         $user = $params['user'];
@@ -101,6 +107,7 @@ final class GetSession
     }
 
     /**
+     * @param array<string, mixed> $access
      * @return string[] Policy IDs to assign
      */
     private static function resolveAccess(QuerriClient $client, array $access): array
@@ -152,6 +159,8 @@ final class GetSession
      * array encodes as JSON [] instead of {}, breaking hash parity with JS
      * (JSON.stringify({}) → "{}"). For non-empty arrays, the cast is a no-op
      * since PHP preserves string-keyed arrays as objects in JSON.
+     *
+     * @param array<string, mixed> $access
      */
     private static function hashAccessSpec(array $access): string
     {
@@ -197,16 +206,16 @@ final class GetSession
         return $result;
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     private static function findPolicyByName(QuerriClient $client, string $name): ?array
     {
         $response = $client->policies->list(['name' => $name]);
-        $policies = $response['data'] ?? $response;
 
-        if (is_array($policies)) {
-            foreach ($policies as $policy) {
-                if (($policy['name'] ?? null) === $name) {
-                    return $policy;
-                }
+        foreach ($response['data'] as $policy) {
+            if (($policy['name'] ?? null) === $name) {
+                return $policy;
             }
         }
 

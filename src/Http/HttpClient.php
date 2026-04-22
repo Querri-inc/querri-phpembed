@@ -30,7 +30,7 @@ final class HttpClient
      * @param array{
      *   method: string,
      *   path: string,
-     *   body?: array|null,
+     *   body?: array<string, mixed>|null,
      *   query?: array<string, string|int|bool|null>|null,
      *   headers?: array<string, string>|null,
      *   timeout?: float|null,
@@ -160,6 +160,9 @@ final class HttpClient
         throw new ConnectionException('Request failed after all retries');
     }
 
+    /**
+     * @param array<string, string|int|bool|null>|null $query
+     */
     private function buildUrl(string $path, ?array $query): string
     {
         $url = rtrim($this->config->baseUrl, '/') . $path;
@@ -174,6 +177,10 @@ final class HttpClient
         return $url;
     }
 
+    /**
+     * @param array<string, string>|null $extra
+     * @return array<string, string>
+     */
     private function buildHeaders(?array $extra, mixed $body): array
     {
         $headers = [

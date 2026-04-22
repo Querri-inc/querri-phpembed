@@ -14,6 +14,7 @@ final class UsersResource extends BaseResource
      * Create a new user.
      *
      * @param array{email?: string, first_name?: string, last_name?: string, role?: string, external_id?: string} $params
+     * @return array<string, mixed>
      */
     public function create(array $params): array
     {
@@ -22,6 +23,8 @@ final class UsersResource extends BaseResource
 
     /**
      * Retrieve a user by their Querri user ID.
+     *
+     * @return array<string, mixed>
      */
     public function retrieve(string $userId): array
     {
@@ -32,6 +35,7 @@ final class UsersResource extends BaseResource
      * List users with optional filters.
      *
      * @param array{limit?: int, after?: string, external_id?: string}|null $params
+     * @return array{data: array<int, array<string, mixed>>, has_more: bool, next_cursor: string|null}
      */
     public function list(?array $params = null): array
     {
@@ -42,6 +46,7 @@ final class UsersResource extends BaseResource
      * Update a user.
      *
      * @param array{email?: string, first_name?: string, last_name?: string, role?: string} $params
+     * @return array<string, mixed>
      */
     public function update(string $userId, array $params): array
     {
@@ -50,6 +55,8 @@ final class UsersResource extends BaseResource
 
     /**
      * Delete a user.
+     *
+     * @return array<string, mixed>
      */
     public function del(string $userId): array
     {
@@ -58,6 +65,8 @@ final class UsersResource extends BaseResource
 
     /**
      * Remove an external ID mapping without affecting the user's org membership.
+     *
+     * @return array<string, mixed>
      */
     public function removeExternalId(string $externalId): array
     {
@@ -71,6 +80,7 @@ final class UsersResource extends BaseResource
      * found, or returns the existing user if the external ID already exists.
      *
      * @param array{email?: string, first_name?: string, last_name?: string, role?: string}|null $params
+     * @return array<string, mixed>
      */
     public function getOrCreate(string $externalId, ?array $params = null): array
     {

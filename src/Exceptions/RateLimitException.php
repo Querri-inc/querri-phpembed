@@ -12,6 +12,9 @@ class RateLimitException extends ApiException
     /** Seconds until the client should retry, parsed from the Retry-After header. */
     public readonly ?float $retryAfter;
 
+    /**
+     * @param array<string, array<int, string>|string> $headers
+     */
     public function __construct(
         string $message,
         int $status,
@@ -28,6 +31,9 @@ class RateLimitException extends ApiException
         $this->retryAfter = $retryAfter;
     }
 
+    /**
+     * @param array<string, array<int, string>|string> $headers
+     */
     public static function fromResponse(int $status, mixed $body, array $headers): static
     {
         $message = self::extractMessage($status, $body);

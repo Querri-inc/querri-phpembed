@@ -18,6 +18,9 @@ final readonly class GetSessionResult implements \JsonSerializable
     ) {
     }
 
+    /**
+     * @return array{session_token: string, expires_in: int, user_id: string, external_id: string|null}
+     */
     public function jsonSerialize(): array
     {
         return [
@@ -28,6 +31,9 @@ final readonly class GetSessionResult implements \JsonSerializable
         ];
     }
 
+    /**
+     * @return array{session_token: string, expires_in: int, user_id: string, external_id: string|null}
+     */
     public function toArray(): array
     {
         return $this->jsonSerialize();

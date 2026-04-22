@@ -22,4 +22,5 @@ jobs:
           extensions: json, hash
           coverage: none
       - run: composer install --no-interaction --prefer-dist
+      - run: composer analyse
       - run: composer test
