@@ -11,6 +11,7 @@ use Querri\Embed\Resources\DataResource;
 use Querri\Embed\Resources\ProjectsResource;
 use Querri\Embed\Resources\SourcesResource;
 use Querri\Embed\Session\GetSessionResult;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
  * User-scoped client that calls the internal API (/api/) with embed session auth.
@@ -36,9 +37,14 @@ final class UserQuerriClient
 
     /**
      * @internal Use QuerriClient::asUser() to create instances.
+     *
+     * @param HttpClientInterface|null $httpClient Optional transport for testing/custom mocks
      */
-    public function __construct(GetSessionResult $session, Config $parentConfig)
-    {
+    public function __construct(
+        GetSessionResult $session,
+        Config $parentConfig,
+        ?HttpClientInterface $httpClient = null,
+    ) {
         $config = Config::forSession(
             sessionToken: $session->sessionToken,
             host: $parentConfig->host,
@@ -46,7 +52,7 @@ final class UserQuerriClient
             maxRetries: $parentConfig->maxRetries,
         );
 
-        $this->httpClient = new HttpClient($config);
+        $this->httpClient = new HttpClient($config, $httpClient);
     }
 
     public function __get(string $name): ProjectsResource|DashboardsResource|SourcesResource|DataResource|ChatsResource
