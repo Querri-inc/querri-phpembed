@@ -66,14 +66,21 @@ final class PoliciesResource extends BaseResource
     /**
      * Assign users to a policy.
      *
-     * @param string[] $userIds
+     * Preferred: `$params = ['user_ids' => ['u_1', 'u_2']]`.
+     * Legacy (deprecated since 0.2.0): passing a bare `string[]` list of
+     * user IDs. The bare-list form is detected at runtime and wrapped into
+     * the shape form; it will be removed in 0.3.0.
+     *
+     * @param array{user_ids: string[]}|string[] $params
      * @return array<string, mixed>
      */
-    public function assignUsers(string $policyId, array $userIds): array
+    public function assignUsers(string $policyId, array $params): array
     {
-        return $this->post('/access/policies/' . rawurlencode($policyId) . '/users', [
-            'user_ids' => $userIds,
-        ]);
+        // Legacy: caller passed a bare list of user IDs (deprecated)
+        if (array_is_list($params)) {
+            $params = ['user_ids' => $params];
+        }
+        return $this->post('/access/policies/' . rawurlencode($policyId) . '/users', $params);
     }
 
     /**
@@ -90,24 +97,32 @@ final class PoliciesResource extends BaseResource
      * Atomically replace ALL policy assignments for a user.
      *
      * Removes every existing assignment, then assigns exactly the listed
-     * policies. Pass an empty array to remove all policies.
+     * policies. Pass `['policy_ids' => []]` to remove all policies.
      *
-     * @param string[] $policyIds
+     * Preferred: `$params = ['policy_ids' => ['pol_1', 'pol_2']]`.
+     * Legacy (deprecated since 0.2.0): passing a bare `string[]` list of
+     * policy IDs. The bare-list form is detected at runtime and wrapped
+     * into the shape form; it will be removed in 0.3.0.
+     *
+     * @param array{policy_ids: string[]}|string[] $params
      * @return array<string, mixed>
      */
-    public function replaceUserPolicies(string $userId, array $policyIds): array
+    public function replaceUserPolicies(string $userId, array $params): array
     {
-        return $this->put('/access/users/' . rawurlencode($userId) . '/policies', [
-            'policy_ids' => $policyIds,
-        ]);
+        // Legacy: caller passed a bare list of policy IDs (deprecated)
+        if (array_is_list($params)) {
+            $params = ['policy_ids' => $params];
+        }
+        return $this->put('/access/users/' . rawurlencode($userId) . '/policies', $params);
     }
 
     /**
-     * Resolve access for a user and data source.
+     * Resolve access for a user and data source. Returns the effective
+     * row filters and column allowlist the user would see against this source.
      *
      * @return array<string, mixed>
      */
-    public function resolve(string $userId, string $sourceId): array
+    public function resolveAccess(string $userId, string $sourceId): array
     {
         return $this->post('/access/resolve', [
             'user_id' => $userId,
@@ -116,15 +131,41 @@ final class PoliciesResource extends BaseResource
     }
 
     /**
-     * List columns for a data source.
+     * List columns for a data source, annotated with the user's access.
+     *
+     * Note: this endpoint is not paginated (no cursor envelope). The API
+     * returns a `{data: [...]}` wrapper that this method unwraps into a
+     * bare list — the only list-style method in the SDK that doesn't
+     * expose the full {data, has_more, next_cursor} envelope, because
+     * has_more/next_cursor aren't meaningful here.
      *
      * @return array<int, array{source_id: string, source_name: string, columns: array<int, array<string, mixed>>}>
      */
-    public function columns(?string $sourceId = null): array
+    public function listColumns(?string $sourceId = null): array
     {
         $response = $this->get('/access/columns', [
             'source_id' => $sourceId,
         ]);
-        return $response['data'] ?? $response;
+        return $response['data'];
+    }
+
+    // ─── Deprecated aliases (removed in 0.3.0) ──────────────────────
+
+    /**
+     * @deprecated since 0.2.0, removed in 0.3.0. Use resolveAccess() instead.
+     * @return array<string, mixed>
+     */
+    public function resolve(string $userId, string $sourceId): array
+    {
+        return $this->resolveAccess($userId, $sourceId);
+    }
+
+    /**
+     * @deprecated since 0.2.0, removed in 0.3.0. Use listColumns() instead.
+     * @return array<int, array{source_id: string, source_name: string, columns: array<int, array<string, mixed>>}>
+     */
+    public function columns(?string $sourceId = null): array
+    {
+        return $this->listColumns($sourceId);
     }
 }

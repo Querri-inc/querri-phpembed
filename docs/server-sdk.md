@@ -496,17 +496,19 @@ del(string $policyId): array
 $client->policies->del('pol_abc');
 ```
 
-#### `$client->policies->assignUsers($policyId, $userIds)`
+#### `$client->policies->assignUsers($policyId, $params)`
 
 Assign one or more users to a policy.
 
 ```php
-assignUsers(string $policyId, array $userIds): array
+assignUsers(string $policyId, array $params): array
 ```
 
 ```php
-$client->policies->assignUsers('pol_abc', ['user_1', 'user_2']);
+$client->policies->assignUsers('pol_abc', ['user_ids' => ['user_1', 'user_2']]);
 ```
+
+> Since 0.2.0, pass `['user_ids' => [...]]` instead of a bare list. The bare-list form still works but is deprecated and will be removed in 0.3.0.
 
 #### `$client->policies->removeUser($policyId, $userId)`
 
@@ -520,50 +522,56 @@ removeUser(string $policyId, string $userId): array
 $client->policies->removeUser('pol_abc', 'user_1');
 ```
 
-#### `$client->policies->replaceUserPolicies($userId, $policyIds)`
+#### `$client->policies->replaceUserPolicies($userId, $params)`
 
-Atomically replace ALL policy assignments for a user. Removes every existing assignment, then assigns exactly the listed policies. Pass an empty array to remove all policies.
+Atomically replace ALL policy assignments for a user. Removes every existing assignment, then assigns exactly the listed policies. Pass `['policy_ids' => []]` to remove all policies.
 
 This is the correct method for mid-session policy switching — it prevents the accumulation bug where `assignUsers()` only adds.
 
 ```php
-replaceUserPolicies(string $userId, array $policyIds): array
+replaceUserPolicies(string $userId, array $params): array
 ```
 
 ```php
 // Replace all policies for a user with exactly these two
-$client->policies->replaceUserPolicies('user_1', ['pol_abc', 'pol_def']);
+$client->policies->replaceUserPolicies('user_1', ['policy_ids' => ['pol_abc', 'pol_def']]);
 // Returns: { user_id, policy_ids, added, removed }
 
 // Remove all policy assignments (grants full access)
-$client->policies->replaceUserPolicies('user_1', []);
+$client->policies->replaceUserPolicies('user_1', ['policy_ids' => []]);
 ```
 
-#### `$client->policies->resolve($userId, $sourceId)`
+> Since 0.2.0, pass `['policy_ids' => [...]]` instead of a bare list. The bare-list form still works but is deprecated and will be removed in 0.3.0.
+
+#### `$client->policies->resolveAccess($userId, $sourceId)`
 
 Resolve the effective access for a user on a specific data source, taking all assigned policies into account.
 
 ```php
-resolve(string $userId, string $sourceId): array
+resolveAccess(string $userId, string $sourceId): array
 ```
 
 ```php
-$access = $client->policies->resolve('user_1', 'src_1');
+$access = $client->policies->resolveAccess('user_1', 'src_1');
 // ['user_id' => ..., 'source_id' => ..., 'resolved_filters' => ..., 'where_clause' => ...]
 ```
 
-#### `$client->policies->columns($sourceId)`
+> Renamed from `resolve()` in 0.2.0. `resolve()` still works as a deprecated alias until 0.3.0.
+
+#### `$client->policies->listColumns($sourceId)`
 
 List available columns for filtering. Optionally scoped to a single source.
 
 ```php
-columns(?string $sourceId = null): array
+listColumns(?string $sourceId = null): array
 ```
 
 ```php
-$cols = $client->policies->columns('src_1');
+$cols = $client->policies->listColumns('src_1');
 // [['source_id' => ..., 'source_name' => ..., 'columns' => [['name' => ..., 'type' => ...]]]]
 ```
+
+> Renamed from `columns()` in 0.2.0. `columns()` still works as a deprecated alias until 0.3.0. Note: this endpoint is the one intentional outlier from the cursor envelope — it returns a bare list (no `has_more`/`next_cursor`).
 
 ---
 
@@ -871,42 +879,46 @@ $client->chats->cancel('proj_abc123', 'chat_456');
 
 Query data sources and manage uploaded data.
 
-#### `$client->data->listSources($params)`
+#### `$client->data->list($params)`
 
 List data sources.
 
 ```php
-listSources(?array $params = null): array
+list(?array $params = null): array
 ```
 
 ```php
-$sources = $client->data->listSources();
-$sources = $client->data->listSources(['limit' => 50]);
-// ['data' => [...], 'has_more' => false]
+$sources = $client->data->list();
+$sources = $client->data->list(['limit' => 50]);
+// ['data' => [...], 'has_more' => false, 'next_cursor' => null]
 ```
 
-#### `$client->data->getSource($sourceId)`
+> Renamed from `listSources()` in 0.2.0. `listSources()` still works as a deprecated alias until 0.3.0.
+
+#### `$client->data->retrieve($sourceId)`
 
 Fetch a single data source by ID.
 
 ```php
-getSource(string $sourceId): array
+retrieve(string $sourceId): array
 ```
 
 ```php
-$source = $client->data->getSource('src_abc123');
+$source = $client->data->retrieve('src_abc123');
 ```
 
-#### `$client->data->createSource($params)`
+> Renamed from `getSource()` in 0.2.0. `getSource()` still works as a deprecated alias until 0.3.0.
+
+#### `$client->data->create($params)`
 
 Create a new data source with inline data.
 
 ```php
-createSource(array $params): array
+create(array $params): array
 ```
 
 ```php
-$source = $client->data->createSource([
+$source = $client->data->create([
     'name' => 'Sales Data',
     'rows' => [
         ['region' => 'US', 'revenue' => 1000],
@@ -914,6 +926,8 @@ $source = $client->data->createSource([
     ],
 ]);
 ```
+
+> Renamed from `createSource()` in 0.2.0. `createSource()` still works as a deprecated alias until 0.3.0.
 
 #### `$client->data->appendRows($sourceId, $params)`
 
@@ -948,17 +962,19 @@ $client->data->replaceData('src_abc123', [
 ]);
 ```
 
-#### `$client->data->deleteSource($sourceId)`
+#### `$client->data->del($sourceId)`
 
 Delete a data source.
 
 ```php
-deleteSource(string $sourceId): array
+del(string $sourceId): array
 ```
 
 ```php
-$client->data->deleteSource('src_abc123');
+$client->data->del('src_abc123');
 ```
+
+> Renamed from `deleteSource()` in 0.2.0. `deleteSource()` still works as a deprecated alias until 0.3.0.
 
 #### `$client->data->query($params)`
 
@@ -1207,31 +1223,33 @@ $events = $client->audit->listEvents([
 
 Query usage metrics.
 
-#### `$client->usage->getOrgUsage($period)`
+#### `$client->usage->getOrgUsage($params)`
 
 Get organization-wide usage metrics.
 
 ```php
-getOrgUsage(string $period = 'current_month'): array
+getOrgUsage(string|array $params = []): array
 ```
 
 ```php
 $usage = $client->usage->getOrgUsage();
-$usage = $client->usage->getOrgUsage('last_30_days');
+$usage = $client->usage->getOrgUsage(['period' => 'last_30_days']);
 // Period values: 'current_month', 'last_month', 'last_30_days'
 ```
 
-#### `$client->usage->getUserUsage($userId, $period)`
+> Since 0.2.0, pass `['period' => ...]` instead of a bare string. The bare-string form still works but is deprecated and will be removed in 0.3.0.
+
+#### `$client->usage->getUserUsage($userId, $params)`
 
 Get usage metrics for a specific user.
 
 ```php
-getUserUsage(string $userId, string $period = 'current_month'): array
+getUserUsage(string $userId, string|array $params = []): array
 ```
 
 ```php
 $usage = $client->usage->getUserUsage('user_abc123');
-$usage = $client->usage->getUserUsage('user_abc123', 'last_month');
+$usage = $client->usage->getUserUsage('user_abc123', ['period' => 'last_month']);
 ```
 
 ---

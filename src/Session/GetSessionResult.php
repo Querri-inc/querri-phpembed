@@ -32,6 +32,9 @@ final readonly class GetSessionResult implements \JsonSerializable
     }
 
     /**
+     * @deprecated since 0.2.0, removed in 0.3.0. Use jsonSerialize() directly,
+     *   or pass the object to json_encode() — JsonSerializable handles the
+     *   conversion automatically.
      * @return array{session_token: string, expires_in: int, user_id: string, external_id: string|null}
      */
     public function toArray(): array

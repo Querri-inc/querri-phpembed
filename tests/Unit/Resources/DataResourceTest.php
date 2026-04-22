@@ -9,32 +9,34 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class DataResourceTest extends MockHttpTestCase
 {
-    public function testListSourcesGetsWithPagination(): void
+    // ─── Primary (new) method names ────────────────────────────────
+
+    public function testListGetsWithPagination(): void
     {
         $client = $this->makeQuerriClient([
             new MockResponse('{"data":[],"has_more":false,"next_cursor":null}', ['http_code' => 200]),
         ]);
 
-        $client->data->listSources(['limit' => 20]);
+        $client->data->list(['limit' => 20]);
 
         $this->assertSame('GET', $this->recorded[0]['method']);
         $this->assertStringContainsString('/data/sources?limit=20', $this->recorded[0]['url']);
     }
 
-    public function testGetSourceEncodesId(): void
+    public function testRetrieveEncodesId(): void
     {
         $client = $this->makeQuerriClient([new MockResponse('{}', ['http_code' => 200])]);
 
-        $client->data->getSource('src/with/slash');
+        $client->data->retrieve('src/with/slash');
 
         $this->assertStringContainsString('src%2Fwith%2Fslash', $this->recorded[0]['url']);
     }
 
-    public function testCreateSourcePostsRows(): void
+    public function testCreatePostsRows(): void
     {
         $client = $this->makeQuerriClient([new MockResponse('{}', ['http_code' => 200])]);
 
-        $client->data->createSource([
+        $client->data->create([
             'name' => 'Users',
             'rows' => [['id' => 1], ['id' => 2]],
         ]);
@@ -42,6 +44,16 @@ final class DataResourceTest extends MockHttpTestCase
         $this->assertSame('POST', $this->recorded[0]['method']);
         $this->assertStringEndsWith('/data/sources', $this->recorded[0]['url']);
         $this->assertStringContainsString('"rows":[{"id":1},{"id":2}]', $this->recorded[0]['body'] ?? '');
+    }
+
+    public function testDelDeletes(): void
+    {
+        $client = $this->makeQuerriClient([new MockResponse('{}', ['http_code' => 200])]);
+
+        $client->data->del('src_1');
+
+        $this->assertSame('DELETE', $this->recorded[0]['method']);
+        $this->assertStringEndsWith('/data/sources/src_1', $this->recorded[0]['url']);
     }
 
     public function testAppendRowsPostsToRowsPath(): void
@@ -64,16 +76,6 @@ final class DataResourceTest extends MockHttpTestCase
         $this->assertStringEndsWith('/data/sources/src_1/data', $this->recorded[0]['url']);
     }
 
-    public function testDeleteSourceDeletes(): void
-    {
-        $client = $this->makeQuerriClient([new MockResponse('{}', ['http_code' => 200])]);
-
-        $client->data->deleteSource('src_1');
-
-        $this->assertSame('DELETE', $this->recorded[0]['method']);
-        $this->assertStringEndsWith('/data/sources/src_1', $this->recorded[0]['url']);
-    }
-
     public function testQueryPostsSqlAndSource(): void
     {
         $client = $this->makeQuerriClient([new MockResponse('{}', ['http_code' => 200])]);
@@ -93,5 +95,41 @@ final class DataResourceTest extends MockHttpTestCase
 
         $this->assertSame('GET', $this->recorded[0]['method']);
         $this->assertStringContainsString('/data/sources/src_1/data?page=2', $this->recorded[0]['url']);
+    }
+
+    // ─── Deprecated aliases still work (one smoke test each) ────────
+
+    public function testListSourcesDeprecatedAliasStillWorks(): void
+    {
+        $client = $this->makeQuerriClient([
+            new MockResponse('{"data":[],"has_more":false,"next_cursor":null}', ['http_code' => 200]),
+        ]);
+        /** @phpstan-ignore method.deprecated (deprecated alias — verified still functional) */
+        $client->data->listSources(['limit' => 5]);
+        $this->assertStringContainsString('/data/sources?limit=5', $this->recorded[0]['url']);
+    }
+
+    public function testGetSourceDeprecatedAliasStillWorks(): void
+    {
+        $client = $this->makeQuerriClient([new MockResponse('{}', ['http_code' => 200])]);
+        /** @phpstan-ignore method.deprecated (deprecated alias — verified still functional) */
+        $client->data->getSource('src_1');
+        $this->assertStringEndsWith('/data/sources/src_1', $this->recorded[0]['url']);
+    }
+
+    public function testCreateSourceDeprecatedAliasStillWorks(): void
+    {
+        $client = $this->makeQuerriClient([new MockResponse('{}', ['http_code' => 200])]);
+        /** @phpstan-ignore method.deprecated (deprecated alias — verified still functional) */
+        $client->data->createSource(['name' => 'X', 'rows' => []]);
+        $this->assertSame('POST', $this->recorded[0]['method']);
+    }
+
+    public function testDeleteSourceDeprecatedAliasStillWorks(): void
+    {
+        $client = $this->makeQuerriClient([new MockResponse('{}', ['http_code' => 200])]);
+        /** @phpstan-ignore method.deprecated (deprecated alias — verified still functional) */
+        $client->data->deleteSource('src_1');
+        $this->assertSame('DELETE', $this->recorded[0]['method']);
     }
 }
