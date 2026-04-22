@@ -63,7 +63,10 @@ final class RetryStrategy
      */
     public static function getRetryAfter(array $headers): ?float
     {
-        $value = $headers['retry-after'][0] ?? $headers['retry-after'] ?? null;
+        $value = $headers['retry-after'] ?? null;
+        if (is_array($value)) {
+            $value = $value[0] ?? null;
+        }
         if ($value === null) {
             return null;
         }

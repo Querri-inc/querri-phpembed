@@ -37,7 +37,7 @@ class RateLimitException extends ApiException
     public static function fromResponse(int $status, mixed $body, array $headers): static
     {
         $message = self::extractMessage($status, $body);
-        $requestId = $headers['x-request-id'][0] ?? $headers['x-request-id'] ?? null;
+        $requestId = self::readSingleHeader($headers, 'x-request-id');
         $type = null;
         $code = null;
         $docUrl = null;
@@ -57,7 +57,7 @@ class RateLimitException extends ApiException
             }
         }
 
-        $ra = $headers['retry-after'][0] ?? $headers['retry-after'] ?? null;
+        $ra = self::readSingleHeader($headers, 'retry-after');
         $retryAfter = $ra !== null && is_numeric($ra) ? (float) $ra : null;
 
         return new static(

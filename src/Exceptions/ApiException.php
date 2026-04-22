@@ -41,7 +41,7 @@ class ApiException extends QuerriException
     public static function fromResponse(int $status, mixed $body, array $headers): static
     {
         $message = self::extractMessage($status, $body);
-        $requestId = $headers['x-request-id'][0] ?? $headers['x-request-id'] ?? null;
+        $requestId = self::readSingleHeader($headers, 'x-request-id');
         $type = null;
         $errorCode = null;
         $docUrl = null;
@@ -98,6 +98,21 @@ class ApiException extends QuerriException
         };
 
         throw $exception;
+    }
+
+    /**
+     * Read a single header value, coping with both Symfony's array<string, string[]>
+     * shape and plain scalar strings that some callers pass.
+     *
+     * @param array<string, array<int, string>|string> $headers
+     */
+    protected static function readSingleHeader(array $headers, string $name): ?string
+    {
+        $value = $headers[$name] ?? null;
+        if (is_array($value)) {
+            $value = $value[0] ?? null;
+        }
+        return is_string($value) ? $value : null;
     }
 
     /**
