@@ -33,7 +33,7 @@
         }
     },
     "scripts": {
-        "test": "echo 'No tests yet — see https://github.com/Querri-inc/querri-phpembed/issues'",
+        "test": "phpunit",
         "analyse": "phpstan analyse --memory-limit=512M",
         "version": "php scripts/bump-version.php"
     },
