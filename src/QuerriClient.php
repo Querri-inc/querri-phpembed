@@ -137,6 +137,6 @@ final class QuerriClient
      */
     public function getSession(array $params): GetSessionResult
     {
-        return GetSession::execute($this, $params);
+        return GetSession::execute($this->users, $this->policies, $this->embed, $params);
     }
 }

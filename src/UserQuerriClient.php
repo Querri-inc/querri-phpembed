@@ -39,12 +39,9 @@ final class UserQuerriClient
      */
     public function __construct(GetSessionResult $session, Config $parentConfig)
     {
-        // Derive host from parent config's baseUrl by stripping /api/v1
-        $host = preg_replace('#/api/v1$#', '', $parentConfig->baseUrl);
-
         $config = Config::forSession(
             sessionToken: $session->sessionToken,
-            host: $host,
+            host: $parentConfig->host,
             timeout: $parentConfig->timeout,
             maxRetries: $parentConfig->maxRetries,
         );

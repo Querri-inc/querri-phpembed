@@ -36,39 +36,20 @@ class RateLimitException extends ApiException
      */
     public static function fromResponse(int $status, mixed $body, array $headers): static
     {
-        $message = self::extractMessage($status, $body);
-        $requestId = self::readSingleHeader($headers, 'x-request-id');
-        $type = null;
-        $code = null;
-        $docUrl = null;
-
-        if (is_array($body)) {
-            // Stripe-style nested error object (primary format)
-            $error = is_array($body['error'] ?? null) ? $body['error'] : null;
-            $source = $error ?? $body;
-
-            $type = is_string($source['type'] ?? null) ? $source['type'] : null;
-            $code = is_string($source['code'] ?? null) ? $source['code'] : null;
-            $docUrl = is_string($source['doc_url'] ?? null) ? $source['doc_url'] : null;
-
-            // Fall back to body request_id when header is absent
-            if ($requestId === null && $error !== null) {
-                $requestId = is_string($error['request_id'] ?? null) ? $error['request_id'] : null;
-            }
-        }
+        $meta = self::extractMetadata($status, $body, $headers);
 
         $ra = self::readSingleHeader($headers, 'retry-after');
         $retryAfter = $ra !== null && is_numeric($ra) ? (float) $ra : null;
 
         return new static(
-            message: $message,
+            message: $meta['message'],
             status: $status,
             body: $body,
             headers: $headers,
-            requestId: $requestId,
-            type: $type,
-            code: $code,
-            docUrl: $docUrl,
+            requestId: $meta['requestId'],
+            type: $meta['type'],
+            code: $meta['errorCode'],
+            docUrl: $meta['docUrl'],
             retryAfter: $retryAfter,
         );
     }

@@ -150,6 +150,22 @@ final class ConfigTest extends TestCase
         $this->assertSame('https://example.com/api', $config->baseUrl);
     }
 
+    public function testHostIsStoredBareForConsumers(): void
+    {
+        $config = Config::resolve(apiKey: 'k', host: 'https://example.com');
+        $this->assertSame('https://example.com', $config->host);
+
+        // host should also be bare even when the caller supplied an API path suffix
+        $withSuffix = Config::resolve(apiKey: 'k', host: 'https://example.com/api/v1');
+        $this->assertSame('https://example.com', $withSuffix->host);
+    }
+
+    public function testForSessionHostMatchesResolveHost(): void
+    {
+        $config = Config::forSession(sessionToken: 's', host: 'https://example.com/api/v1');
+        $this->assertSame('https://example.com', $config->host);
+    }
+
     public function testForSessionSetsSessionTokenAndEmptyApiKey(): void
     {
         $config = Config::forSession(sessionToken: 'sess_abc');

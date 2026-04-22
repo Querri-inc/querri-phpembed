@@ -81,7 +81,7 @@ final class GetSessionTest extends TestCase
         $this->expectExceptionMessage("'user' parameter is required");
 
         /** @phpstan-ignore argument.type (intentionally malformed to exercise runtime check) */
-        GetSession::execute($client, []);
+        GetSession::execute($client->users, $client->policies, $client->embed, []);
     }
 
     public function testThrowsWhenUserArrayMissingExternalId(): void
@@ -92,7 +92,7 @@ final class GetSessionTest extends TestCase
         $this->expectExceptionMessage("'external_id' field is required");
 
         /** @phpstan-ignore argument.type (intentionally malformed to exercise runtime check) */
-        GetSession::execute($client, ['user' => ['email' => 'a@b.com']]);
+        GetSession::execute($client->users, $client->policies, $client->embed, ['user' => ['email' => 'a@b.com']]);
     }
 
     // ─── hashAccessSpec via reflection ─────────────────────────────
@@ -198,7 +198,7 @@ final class GetSessionTest extends TestCase
             ),
         ]);
 
-        $result = GetSession::execute($client, ['user' => 'ext_99']);
+        $result = GetSession::execute($client->users, $client->policies, $client->embed, ['user' => 'ext_99']);
 
         $this->assertSame('tok_abc', $result->sessionToken);
         $this->assertSame(3600, $result->expiresIn);
@@ -220,7 +220,7 @@ final class GetSessionTest extends TestCase
             new MockResponse('{"session_token":"t","expires_in":10,"user_id":"usr_42"}', ['http_code' => 200]),
         ]);
 
-        GetSession::execute($client, [
+        GetSession::execute($client->users, $client->policies, $client->embed, [
             'user' => [
                 'external_id' => 'ext_99',
                 'email' => 'a@b.com',
@@ -239,7 +239,7 @@ final class GetSessionTest extends TestCase
             new MockResponse('{"session_token":"t","expires_in":10,"user_id":"usr_42"}', ['http_code' => 200]),
         ]);
 
-        GetSession::execute($client, [
+        GetSession::execute($client->users, $client->policies, $client->embed, [
             'user' => 'ext_99',
             'access' => ['policy_ids' => ['pol_1', 'pol_2']],
         ]);
@@ -267,7 +267,7 @@ final class GetSessionTest extends TestCase
             new MockResponse('{"session_token":"t","expires_in":10,"user_id":"usr_42"}', ['http_code' => 200]),
         ]);
 
-        GetSession::execute($client, [
+        GetSession::execute($client->users, $client->policies, $client->embed, [
             'user' => 'ext_99',
             'access' => [
                 'sources' => ['src_a'],
@@ -301,7 +301,7 @@ final class GetSessionTest extends TestCase
             new MockResponse('{"session_token":"t","expires_in":10,"user_id":"usr_42"}', ['http_code' => 200]),
         ]);
 
-        GetSession::execute($client, [
+        GetSession::execute($client->users, $client->policies, $client->embed, [
             'user' => 'ext_99',
             'access' => ['sources' => ['src_a'], 'filters' => []],
         ]);
@@ -335,7 +335,7 @@ final class GetSessionTest extends TestCase
             new MockResponse('{"session_token":"t","expires_in":10,"user_id":"usr_42"}', ['http_code' => 200]),
         ]);
 
-        $result = GetSession::execute($client, [
+        $result = GetSession::execute($client->users, $client->policies, $client->embed, [
             'user' => 'ext_99',
             'access' => ['sources' => ['src_a'], 'filters' => []],
         ]);
@@ -352,7 +352,7 @@ final class GetSessionTest extends TestCase
             new MockResponse('{"session_token":"t","expires_in":7200,"user_id":"usr_42"}', ['http_code' => 200]),
         ]);
 
-        GetSession::execute($client, [
+        GetSession::execute($client->users, $client->policies, $client->embed, [
             'user' => 'ext_99',
             'origin' => 'https://app.example.com',
             'ttl' => 7200,
@@ -371,7 +371,7 @@ final class GetSessionTest extends TestCase
             new MockResponse('{"session_token":"t","expires_in":3600,"user_id":"usr_42"}', ['http_code' => 200]),
         ]);
 
-        GetSession::execute($client, ['user' => 'ext_99']);
+        GetSession::execute($client->users, $client->policies, $client->embed, ['user' => 'ext_99']);
 
         $sessionBody = $this->recorded[1]['body'] ?? '';
         $this->assertStringNotContainsString('origin', $sessionBody);

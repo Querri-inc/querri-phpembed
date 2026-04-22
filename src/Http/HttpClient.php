@@ -125,31 +125,28 @@ final class HttpClient
                 throw $e;
             } catch (SymfonyTimeoutException $e) {
                 // Catch timeout before general TransportException (subclass must come first)
-                if ($attempt < $maxRetries && $isIdempotent) {
-                    $lastError = new TimeoutException(
+                $lastError = $this->retryableOrThrow(
+                    $attempt,
+                    $maxRetries,
+                    $isIdempotent,
+                    new TimeoutException(
                         "Request timed out after {$timeout}s: {$method} {$path}",
                         previous: $e,
-                    );
-                    continue;
-                }
-                throw new TimeoutException(
-                    "Request timed out after {$timeout}s: {$method} {$path}",
-                    previous: $e,
+                    ),
                 );
+                continue;
             } catch (TransportExceptionInterface $e) {
                 // Connection errors: retry if idempotent, throw immediately for POST/PATCH
-                if ($attempt < $maxRetries && $isIdempotent) {
-                    $lastError = new ConnectionException(
+                $lastError = $this->retryableOrThrow(
+                    $attempt,
+                    $maxRetries,
+                    $isIdempotent,
+                    new ConnectionException(
                         "Connection failed: {$e->getMessage()}",
                         previous: $e,
-                    );
-                    continue;
-                }
-
-                throw new ConnectionException(
-                    "Connection failed: {$e->getMessage()}",
-                    previous: $e,
+                    ),
                 );
+                continue;
             }
         }
 
@@ -158,6 +155,26 @@ final class HttpClient
         }
 
         throw new ConnectionException('Request failed after all retries');
+    }
+
+    /**
+     * Shared retry-or-throw decision for transport-level catches.
+     * Returns the exception to store as `$lastError` for the next iteration
+     * when this attempt is still retryable; throws the same exception when
+     * retries are exhausted or the method isn't idempotent.
+     *
+     * @throws \Throwable when attempt is not retryable
+     */
+    private function retryableOrThrow(
+        int $attempt,
+        int $maxRetries,
+        bool $isIdempotent,
+        \Throwable $error,
+    ): \Throwable {
+        if ($attempt < $maxRetries && $isIdempotent) {
+            return $error;
+        }
+        throw $error;
     }
 
     /**

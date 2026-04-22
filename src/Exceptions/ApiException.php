@@ -40,6 +40,32 @@ class ApiException extends QuerriException
      */
     public static function fromResponse(int $status, mixed $body, array $headers): static
     {
+        $meta = self::extractMetadata($status, $body, $headers);
+
+        return new static(
+            message: $meta['message'],
+            status: $status,
+            body: $body,
+            headers: $headers,
+            requestId: $meta['requestId'],
+            type: $meta['type'],
+            errorCode: $meta['errorCode'],
+            docUrl: $meta['docUrl'],
+        );
+    }
+
+    /**
+     * Parse message + request ID + error metadata from a response body,
+     * handling both Stripe-style nested ({error: {...}}) and flat formats.
+     *
+     * Shared by ApiException::fromResponse and RateLimitException::fromResponse
+     * so the body-parsing block lives in exactly one place.
+     *
+     * @param array<string, array<int, string>|string> $headers
+     * @return array{message: string, requestId: ?string, type: ?string, errorCode: ?string, docUrl: ?string}
+     */
+    protected static function extractMetadata(int $status, mixed $body, array $headers): array
+    {
         $message = self::extractMessage($status, $body);
         $requestId = self::readSingleHeader($headers, 'x-request-id');
         $type = null;
@@ -61,16 +87,13 @@ class ApiException extends QuerriException
             }
         }
 
-        return new static(
-            message: $message,
-            status: $status,
-            body: $body,
-            headers: $headers,
-            requestId: $requestId,
-            type: $type,
-            errorCode: $errorCode,
-            docUrl: $docUrl,
-        );
+        return [
+            'message' => $message,
+            'requestId' => $requestId,
+            'type' => $type,
+            'errorCode' => $errorCode,
+            'docUrl' => $docUrl,
+        ];
     }
 
     /**

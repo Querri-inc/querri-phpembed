@@ -7,7 +7,9 @@ namespace Querri\Embed\Session;
 use Querri\Embed\Exceptions\ConfigException;
 use Querri\Embed\Exceptions\ConflictException;
 use Querri\Embed\Exceptions\QuerriException;
-use Querri\Embed\QuerriClient;
+use Querri\Embed\Resources\EmbedResource;
+use Querri\Embed\Resources\PoliciesResource;
+use Querri\Embed\Resources\UsersResource;
 
 /**
  * High-level convenience that creates an embed session in three steps:
@@ -17,6 +19,9 @@ use Querri\Embed\QuerriClient;
  *    deterministically-named policy and assigns the user to it.
  *    If policy_ids are provided, those are used directly.
  * 3. Session creation — calls embed.createSession() and returns the token.
+ *
+ * Takes the specific resources it needs (not the root QuerriClient) so the
+ * Session/ subsystem doesn't create a back-edge into its parent package.
  */
 final class GetSession
 {
@@ -28,8 +33,12 @@ final class GetSession
      *   ttl?: int,
      * } $params
      */
-    public static function execute(QuerriClient $client, array $params): GetSessionResult
-    {
+    public static function execute(
+        UsersResource $users,
+        PoliciesResource $policies,
+        EmbedResource $embed,
+        array $params,
+    ): GetSessionResult {
         // @phpstan-ignore isset.offset (runtime defense for untyped callers)
         if (!isset($params['user'])) {
             throw new ConfigException(
@@ -45,20 +54,20 @@ final class GetSession
         }
 
         // --- Step 1: User Resolution ---
-        $userResult = self::resolveUser($client, $params);
+        $userResult = self::resolveUser($users, $params);
         $userId = $userResult['id'];
         $externalId = $userResult['external_id'] ?? null;
 
         // --- Step 2: Access Policy ---
         $access = $params['access'] ?? null;
         if ($access !== null) {
-            $policyIds = self::resolveAccess($client, $access);
+            $policyIds = self::resolveAccess($policies, $access);
 
             // Atomically replace all policy assignments for this user.
             // This removes any previously assigned policies (e.g., from a prior
             // getSession() call with different filters) and assigns exactly the
             // new set, preventing policy accumulation.
-            $client->policies->replaceUserPolicies($userId, $policyIds);
+            $policies->replaceUserPolicies($userId, $policyIds);
         }
 
         // --- Step 3: Create Embed Session ---
@@ -73,7 +82,7 @@ final class GetSession
             $sessionParams['origin'] = $params['origin'];
         }
 
-        $session = $client->embed->createSession($sessionParams);
+        $session = $embed->createSession($sessionParams);
 
         return new GetSessionResult(
             sessionToken: $session['session_token'],
@@ -85,14 +94,14 @@ final class GetSession
 
     /**
      * @param array<string, mixed> $params
-     * @return array<string, mixed>
+     * @return array{id: string, external_id?: string}
      */
-    private static function resolveUser(QuerriClient $client, array $params): array
+    private static function resolveUser(UsersResource $users, array $params): array
     {
         $user = $params['user'];
 
         if (is_string($user)) {
-            return $client->users->getOrCreate($user);
+            return $users->getOrCreate($user);
         }
 
         $externalId = $user['external_id'];
@@ -103,14 +112,14 @@ final class GetSession
             'role' => $user['role'] ?? null,
         ], fn ($v) => $v !== null);
 
-        return $client->users->getOrCreate($externalId, $userData ?: null);
+        return $users->getOrCreate($externalId, $userData ?: null);
     }
 
     /**
      * @param array<string, mixed> $access
      * @return string[] Policy IDs to assign
      */
-    private static function resolveAccess(QuerriClient $client, array $access): array
+    private static function resolveAccess(PoliciesResource $policies, array $access): array
     {
         if (isset($access['policy_ids'])) {
             return $access['policy_ids'];
@@ -120,11 +129,11 @@ final class GetSession
         $hash = self::hashAccessSpec($access);
         $policyName = "sdk_auto_{$hash}";
 
-        $existing = self::findPolicyByName($client, $policyName);
+        $existing = self::findPolicyByName($policies, $policyName);
 
         if ($existing === null) {
             try {
-                $existing = $client->policies->create([
+                $existing = $policies->create([
                     'name' => $policyName,
                     'source_ids' => $access['sources'],
                     'row_filters' => self::buildRowFilters($access['filters'] ?? []),
@@ -132,7 +141,7 @@ final class GetSession
             } catch (ConflictException) {
                 // TOCTOU race: another request created the policy between our
                 // list check and this create call. Re-fetch by name.
-                $existing = self::findPolicyByName($client, $policyName);
+                $existing = self::findPolicyByName($policies, $policyName);
                 if ($existing === null) {
                     throw new QuerriException(
                         "Failed to create or find policy '{$policyName}'",
@@ -209,9 +218,9 @@ final class GetSession
     /**
      * @return array<string, mixed>|null
      */
-    private static function findPolicyByName(QuerriClient $client, string $name): ?array
+    private static function findPolicyByName(PoliciesResource $policies, string $name): ?array
     {
-        $response = $client->policies->list(['name' => $name]);
+        $response = $policies->list(['name' => $name]);
 
         foreach ($response['data'] as $policy) {
             if (($policy['name'] ?? null) === $name) {
