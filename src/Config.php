@@ -12,11 +12,12 @@ use Querri\Embed\Exceptions\ConfigException;
  */
 final readonly class Config
 {
-    public const VERSION = '0.1.5';
+    public const VERSION = '0.2.0';
 
     private function __construct(
         public string $apiKey,
         public ?string $orgId,
+        public string $host,
         public string $baseUrl,
         public float $timeout,
         public int $maxRetries,
@@ -47,10 +48,14 @@ final readonly class Config
         $host ??= self::env('QUERRI_URL') ?? 'https://app.querri.com';
         $host = rtrim($host, '/');
         $baseUrl = str_ends_with($host, '/api/v1') ? $host : "{$host}/api/v1";
+        // Strip any API-path suffix from host so consumers (e.g. UserQuerriClient)
+        // can use it as a bare origin without re-parsing baseUrl.
+        $bareHost = preg_replace('#/api(/v1)?$#', '', $host) ?? $host;
 
         return new self(
             apiKey: $apiKey,
             orgId: $orgId,
+            host: $bareHost,
             baseUrl: $baseUrl,
             timeout: $timeout ?? 30.0,
             maxRetries: $maxRetries ?? 3,
@@ -70,11 +75,13 @@ final readonly class Config
     ): self {
         $host ??= self::env('QUERRI_URL') ?? 'https://app.querri.com';
         $host = rtrim($host, '/');
+        $bareHost = preg_replace('#/api(/v1)?$#', '', $host) ?? $host;
 
         return new self(
             apiKey: '',
             orgId: null,
-            baseUrl: "{$host}/api",
+            host: $bareHost,
+            baseUrl: "{$bareHost}/api",
             timeout: $timeout ?? 30.0,
             maxRetries: $maxRetries ?? 3,
             userAgent: 'querri-php/' . self::VERSION,

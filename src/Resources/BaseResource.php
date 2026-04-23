@@ -17,6 +17,10 @@ abstract class BaseResource
     ) {
     }
 
+    /**
+     * @param array<string, string|int|bool|null>|null $query
+     * @return array<string, mixed>
+     */
     protected function get(string $path, ?array $query = null): array
     {
         return $this->client->request([
@@ -26,6 +30,10 @@ abstract class BaseResource
         ]);
     }
 
+    /**
+     * @param array<string, mixed>|null $body
+     * @return array<string, mixed>
+     */
     protected function post(string $path, ?array $body = null): array
     {
         return $this->client->request([
@@ -35,6 +43,10 @@ abstract class BaseResource
         ]);
     }
 
+    /**
+     * @param array<string, mixed>|null $body
+     * @return array<string, mixed>
+     */
     protected function put(string $path, ?array $body = null): array
     {
         return $this->client->request([
@@ -44,6 +56,10 @@ abstract class BaseResource
         ]);
     }
 
+    /**
+     * @param array<string, mixed>|null $body
+     * @return array<string, mixed>
+     */
     protected function patch(string $path, ?array $body = null): array
     {
         return $this->client->request([
@@ -53,6 +69,14 @@ abstract class BaseResource
         ]);
     }
 
+    /**
+     * DELETE requests typically return HTTP 204 No Content, which HttpClient
+     * surfaces as an empty array (`[]`). Resource-level `del()` / `revoke()`
+     * methods that delegate here inherit that shape — callers should not
+     * rely on body content from DELETE responses.
+     *
+     * @return array{}
+     */
     protected function delete(string $path): array
     {
         return $this->client->request([

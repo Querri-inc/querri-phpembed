@@ -53,19 +53,24 @@ try {
     //
     // ------------------------------------------------------------------
 
+    // Demo payload — replace the user identity with your real user, and
+    // replace the access block with the sources and row-level filters that
+    // apply to them. For local testing, point `sources` at a source name or
+    // UUID that exists in your Querri org.
     $session = $client->getSession([
         'user' => [
-            'external_id' => 'john-sim-querri',
-            'email'       => 'john.sim@querri.com',
-            'first_name'  => 'John',
-            'last_name'   => 'Sim',
+            'external_id' => 'demo-user-123',
+            'email'       => 'demo.user@example.com',
+            'first_name'  => 'Demo',
+            'last_name'   => 'User',
         ],
         'access' => [
-            'sources' => ['franchisor_financial_reports_202602190025.csv'],
+            // List the sources this user is allowed to query (by name or UUID).
+            'sources' => ['your_source_name_or_uuid'],
+            // Optional: restrict rows by column values. Example shown; remove
+            // or adapt to your schema.
             'filters' => [
-                'store_id' => [
-                    '7434','3451','9273','8213','6834','4293','3353','3352','2903','6835','2923','7435','3417','3412','3413','4933','3232','7436','7532','3285','5361','10314','10313','2873','7437','2931','3883','4396','5354','5339','3332','7239','3225','5939','5350','6935','7443','7301','6236','10312','10435','9473','9389','10643'
-                ],
+                'tenant_id' => ['tenant_1', 'tenant_2'],
             ],
         ],
         'origin' => $_SERVER['HTTP_ORIGIN'] ?? null,

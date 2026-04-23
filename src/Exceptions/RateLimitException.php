@@ -12,6 +12,9 @@ class RateLimitException extends ApiException
     /** Seconds until the client should retry, parsed from the Retry-After header. */
     public readonly ?float $retryAfter;
 
+    /**
+     * @param array<string, array<int, string>|string> $headers
+     */
     public function __construct(
         string $message,
         int $status,
@@ -28,41 +31,25 @@ class RateLimitException extends ApiException
         $this->retryAfter = $retryAfter;
     }
 
+    /**
+     * @param array<string, array<int, string>|string> $headers
+     */
     public static function fromResponse(int $status, mixed $body, array $headers): static
     {
-        $message = self::extractMessage($status, $body);
-        $requestId = $headers['x-request-id'][0] ?? $headers['x-request-id'] ?? null;
-        $type = null;
-        $code = null;
-        $docUrl = null;
+        $meta = self::extractMetadata($status, $body, $headers);
 
-        if (is_array($body)) {
-            // Stripe-style nested error object (primary format)
-            $error = is_array($body['error'] ?? null) ? $body['error'] : null;
-            $source = $error ?? $body;
-
-            $type = is_string($source['type'] ?? null) ? $source['type'] : null;
-            $code = is_string($source['code'] ?? null) ? $source['code'] : null;
-            $docUrl = is_string($source['doc_url'] ?? null) ? $source['doc_url'] : null;
-
-            // Fall back to body request_id when header is absent
-            if ($requestId === null && $error !== null) {
-                $requestId = is_string($error['request_id'] ?? null) ? $error['request_id'] : null;
-            }
-        }
-
-        $ra = $headers['retry-after'][0] ?? $headers['retry-after'] ?? null;
+        $ra = self::readSingleHeader($headers, 'retry-after');
         $retryAfter = $ra !== null && is_numeric($ra) ? (float) $ra : null;
 
         return new static(
-            message: $message,
+            message: $meta['message'],
             status: $status,
             body: $body,
             headers: $headers,
-            requestId: $requestId,
-            type: $type,
-            code: $code,
-            docUrl: $docUrl,
+            requestId: $meta['requestId'],
+            type: $meta['type'],
+            code: $meta['errorCode'],
+            docUrl: $meta['docUrl'],
             retryAfter: $retryAfter,
         );
     }

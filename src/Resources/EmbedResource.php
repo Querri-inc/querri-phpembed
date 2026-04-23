@@ -31,6 +31,8 @@ final class EmbedResource extends BaseResource
 
     /**
      * Refresh an embed session token.
+     *
+     * @return array<string, mixed>
      */
     public function refreshSession(string $sessionToken): array
     {
@@ -43,6 +45,7 @@ final class EmbedResource extends BaseResource
      * List active embed sessions.
      *
      * @param array{limit?: int, after?: string}|null $params
+     * @return array{data: array<int, array<string, mixed>>, has_more: bool, next_cursor: string|null}
      */
     public function listSessions(?array $params = null): array
     {
@@ -54,6 +57,8 @@ final class EmbedResource extends BaseResource
 
     /**
      * Revoke an embed session.
+     *
+     * @return array<string, mixed>
      */
     public function revokeSession(string $sessionId): array
     {
@@ -73,7 +78,7 @@ final class EmbedResource extends BaseResource
         $sessions = $this->listSessions();
         $revoked = 0;
 
-        foreach ($sessions['data'] ?? [] as $session) {
+        foreach ($sessions['data'] as $session) {
             if (($session['user_id'] ?? null) === $userId) {
                 $this->revokeSession($session['session_token']);
                 $revoked++;

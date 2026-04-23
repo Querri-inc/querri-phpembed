@@ -1,0 +1,14 @@
+parameters:
+    level: 6
+    paths:
+        - src
+    ignoreErrors:
+        # `fromResponse` is an intentional factory that uses `new static()` so
+        # that subclasses (ValidationException, NotFoundException, etc.) produce
+        # the right instance when inherited. RateLimitException overrides it
+        # with its own `new static()`. Both are safe at runtime.
+        -
+            message: '#Unsafe usage of new static\(\)#'
+            paths:
+                - src/Exceptions/ApiException.php
+                - src/Exceptions/RateLimitException.php

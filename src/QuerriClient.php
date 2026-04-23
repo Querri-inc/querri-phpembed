@@ -89,10 +89,12 @@ final class QuerriClient
     /**
      * Create a user-scoped client from a session result.
      * Uses the internal API with embed session auth — resources are FGA-filtered.
+     *
+     * @param HttpClientInterface|null $httpClient Optional transport for testing/custom mocks
      */
-    public function asUser(GetSessionResult $session): UserQuerriClient
+    public function asUser(GetSessionResult $session, ?HttpClientInterface $httpClient = null): UserQuerriClient
     {
-        return new UserQuerriClient($session, $this->config);
+        return new UserQuerriClient($session, $this->config, $httpClient);
     }
 
     /**
@@ -137,6 +139,6 @@ final class QuerriClient
      */
     public function getSession(array $params): GetSessionResult
     {
-        return GetSession::execute($this, $params);
+        return GetSession::execute($this->users, $this->policies, $this->embed, $params);
     }
 }
