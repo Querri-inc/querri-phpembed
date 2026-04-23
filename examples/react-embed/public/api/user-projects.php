@@ -6,7 +6,7 @@ declare(strict_types=1);
  * User-Filtered Project List Example
  *
  * POST /api/user-projects.php
- * Body: { "external_id": "demo-user", "email": "john@example.com" }
+ * Body: { "external_id": "demo-user", "email": "jane@example.com" }
  *
  * Demonstrates how to get a per-user, FGA-filtered project list:
  *
