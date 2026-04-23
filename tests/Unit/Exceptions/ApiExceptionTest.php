@@ -144,4 +144,118 @@ final class ApiExceptionTest extends TestCase
             $this->assertNull($e->retryAfter);
         }
     }
+
+    public function testUnwrapsFastApiHttpExceptionWithStripeError(): void
+    {
+        // Querri API wraps known errors in FastAPI's HTTPException detail envelope
+        // around a Stripe-shaped error object.
+        $body = [
+            'detail' => [
+                'error' => [
+                    'type' => 'authentication_error',
+                    'code' => 'invalid_api_key',
+                    'message' => 'The API key provided is invalid, expired, or revoked.',
+                    'doc_url' => 'https://docs.querri.com/api/errors#invalid_api_key',
+                    'request_id' => 'req_fastapi_wrap',
+                ],
+            ],
+        ];
+
+        $exception = ApiException::fromResponse(401, $body, []);
+
+        $this->assertSame('The API key provided is invalid, expired, or revoked.', $exception->getMessage());
+        $this->assertSame('authentication_error', $exception->type);
+        $this->assertSame('invalid_api_key', $exception->errorCode);
+        $this->assertSame('https://docs.querri.com/api/errors#invalid_api_key', $exception->docUrl);
+        $this->assertSame('req_fastapi_wrap', $exception->requestId);
+    }
+
+    public function testUnwrapsFastApiHttpExceptionFlat(): void
+    {
+        // FastAPI HTTPException with the error fields directly on detail (no inner 'error' key).
+        $body = [
+            'detail' => [
+                'type' => 'invalid_request_error',
+                'code' => 'source_not_found',
+                'message' => 'Could not resolve source(s): foo.csv.',
+                'doc_url' => 'https://docs.querri.com/api/errors#source_not_found',
+            ],
+        ];
+
+        $exception = ApiException::fromResponse(400, $body, []);
+
+        $this->assertSame('Could not resolve source(s): foo.csv.', $exception->getMessage());
+        $this->assertSame('invalid_request_error', $exception->type);
+        $this->assertSame('source_not_found', $exception->errorCode);
+        $this->assertSame('https://docs.querri.com/api/errors#source_not_found', $exception->docUrl);
+    }
+
+    public function testUnwrapsFastApiValidationSingleError(): void
+    {
+        // Pydantic validation error shape.
+        $body = [
+            'detail' => [
+                [
+                    'type' => 'missing',
+                    'loc' => ['body', 'user_id'],
+                    'msg' => 'Field required',
+                    'input' => [],
+                ],
+            ],
+        ];
+
+        $exception = ApiException::fromResponse(422, $body, []);
+
+        $this->assertSame('Validation failed: body.user_id: Field required', $exception->getMessage());
+        $this->assertSame('missing', $exception->type);
+    }
+
+    public function testUnwrapsFastApiValidationMultipleErrors(): void
+    {
+        $body = [
+            'detail' => [
+                ['type' => 'missing', 'loc' => ['body', 'a'], 'msg' => 'A required'],
+                ['type' => 'value_error', 'loc' => ['body', 'b'], 'msg' => 'B invalid'],
+            ],
+        ];
+
+        $exception = ApiException::fromResponse(422, $body, []);
+
+        $message = $exception->getMessage();
+        $this->assertStringContainsString('body.a: A required', $message);
+        $this->assertStringContainsString('body.b: B invalid', $message);
+        $this->assertStringContainsString(';', $message);
+        // Type taken from the first validation error.
+        $this->assertSame('missing', $exception->type);
+    }
+
+    public function testUnwrapsFastApiPlainStringDetail(): void
+    {
+        $body = ['detail' => 'Something bad happened'];
+
+        $exception = ApiException::fromResponse(500, $body, []);
+
+        $this->assertSame('Something bad happened', $exception->getMessage());
+    }
+
+    public function testBodyPropertyPreservesOriginalWrappedShape(): void
+    {
+        // The unwrap is only used to extract metadata; the exception's body property
+        // must still reflect exactly what the server sent, so callers can inspect
+        // the raw response when debugging.
+        $body = [
+            'detail' => [
+                'error' => [
+                    'type' => 'invalid_request_error',
+                    'code' => 'some_code',
+                    'message' => 'human readable',
+                ],
+            ],
+        ];
+
+        $exception = ApiException::fromResponse(400, $body, []);
+
+        $this->assertSame($body, $exception->body);
+        $this->assertArrayHasKey('detail', $exception->body);
+    }
 }

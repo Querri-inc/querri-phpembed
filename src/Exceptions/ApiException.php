@@ -66,6 +66,7 @@ class ApiException extends QuerriException
      */
     protected static function extractMetadata(int $status, mixed $body, array $headers): array
     {
+        $body = self::unwrapFastApiDetail($body);
         $message = self::extractMessage($status, $body);
         $requestId = self::readSingleHeader($headers, 'x-request-id');
         $type = null;
@@ -136,6 +137,54 @@ class ApiException extends QuerriException
             $value = $value[0] ?? null;
         }
         return is_string($value) ? $value : null;
+    }
+
+    /**
+     * Unwrap FastAPI's {detail: ...} envelope so the standard parser sees a
+     * Stripe-shaped body. Handles three FastAPI shapes:
+     *   - {detail: {error: {...}}} or {detail: {type, code, message}} → return detail
+     *   - {detail: [{type, loc, msg, ...}, ...]} → synthesize an {error: {...}} with a readable message
+     *   - {detail: "plain message"} → return {message: "..."}
+     */
+    protected static function unwrapFastApiDetail(mixed $body): mixed
+    {
+        if (!is_array($body) || !array_key_exists('detail', $body)) {
+            return $body;
+        }
+        $detail = $body['detail'];
+
+        if (is_string($detail)) {
+            return ['message' => $detail];
+        }
+
+        if (is_array($detail)) {
+            // Pydantic validation errors: list of {type, loc, msg, input}
+            if (array_is_list($detail) && is_array($detail[0] ?? null) && isset($detail[0]['msg'])) {
+                $parts = [];
+                foreach ($detail as $err) {
+                    if (!is_array($err)) {
+                        continue;
+                    }
+                    $loc = is_array($err['loc'] ?? null)
+                        ? implode('.', array_map(static fn($x): string => (string) $x, $err['loc']))
+                        : null;
+                    $msg = is_string($err['msg'] ?? null) ? $err['msg'] : 'validation error';
+                    $parts[] = $loc !== null && $loc !== '' ? "{$loc}: {$msg}" : $msg;
+                }
+                $type = is_string($detail[0]['type'] ?? null) ? $detail[0]['type'] : 'validation_error';
+                return [
+                    'error' => [
+                        'type' => $type,
+                        'message' => 'Validation failed: ' . implode('; ', $parts),
+                    ],
+                ];
+            }
+
+            // HTTPException wrap: {detail: {error: {...}}} or {detail: {type, code, message}}
+            return $detail;
+        }
+
+        return $body;
     }
 
     /**
