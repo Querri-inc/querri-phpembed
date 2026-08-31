@@ -25,6 +25,25 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class QuerriClientTest extends MockHttpTestCase
 {
+    private string|false $savedOrgId = false;
+
+    protected function setUp(): void
+    {
+        // org_id is required at construct in 1.0; the bare-string and
+        // Config-object constructions below rely on the env fallback.
+        $this->savedOrgId = getenv('QUERRI_ORG_ID');
+        putenv('QUERRI_ORG_ID=org_env_test');
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->savedOrgId === false) {
+            putenv('QUERRI_ORG_ID');
+        } else {
+            putenv('QUERRI_ORG_ID=' . $this->savedOrgId);
+        }
+    }
+
     public function testConstructFromApiKeyString(): void
     {
         $client = new QuerriClient('qk_abc');

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Querri\Embed\Tests\Unit\Resources;
 
+use Querri\Embed\Config;
+use Querri\Embed\Exceptions\ValidationException;
 use Querri\Embed\Tests\Unit\MockHttpTestCase;
 use Symfony\Component\HttpClient\Response\MockResponse;
 
@@ -29,12 +31,105 @@ final class EmbedResourceTest extends MockHttpTestCase
         $client->embed->createSession([
             'user_id' => 'u_1',
             'origin' => 'https://app.example.com',
-            'ttl' => 60,
+            'ttl' => 900,
         ]);
 
         $body = $this->recorded[0]['body'] ?? '';
         $this->assertStringContainsString('"origin":"https://app.example.com"', $body);
-        $this->assertStringContainsString('"ttl":60', $body);
+        $this->assertStringContainsString('"ttl":900', $body);
+    }
+
+    public function testCreateSessionFallsBackToConfigDefaultOrigin(): void
+    {
+        $config = Config::resolve(
+            apiKey: 'test_key',
+            orgId: 'org_test',
+            host: 'https://example.com',
+            maxRetries: 0,
+            defaultOrigin: 'https://default.example.com',
+        );
+        $client = $this->makeQuerriClient(
+            [new MockResponse('{}', ['http_code' => 200])],
+            $config,
+        );
+
+        $client->embed->createSession(['user_id' => 'u_1']);
+
+        $this->assertStringContainsString(
+            '"origin":"https://default.example.com"',
+            $this->recorded[0]['body'] ?? '',
+        );
+    }
+
+    public function testCreateSessionExplicitOriginBeatsDefaultOrigin(): void
+    {
+        $config = Config::resolve(
+            apiKey: 'test_key',
+            orgId: 'org_test',
+            host: 'https://example.com',
+            maxRetries: 0,
+            defaultOrigin: 'https://default.example.com',
+        );
+        $client = $this->makeQuerriClient(
+            [new MockResponse('{}', ['http_code' => 200])],
+            $config,
+        );
+
+        $client->embed->createSession(['user_id' => 'u_1', 'origin' => 'https://explicit.example.com']);
+
+        $body = $this->recorded[0]['body'] ?? '';
+        $this->assertStringContainsString('"origin":"https://explicit.example.com"', $body);
+        $this->assertStringNotContainsString('default.example.com', $body);
+    }
+
+    public function testCreateSessionRejectsTtlBelowMinimumWithoutHttpCall(): void
+    {
+        $client = $this->makeQuerriClient([]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('ttl must be between 900 and 86400');
+        try {
+            $client->embed->createSession(['user_id' => 'u_1', 'ttl' => 60]);
+        } finally {
+            $this->assertCount(0, $this->recorded); // guard fires before any HTTP
+        }
+    }
+
+    public function testCreateSessionRejectsTtlAboveMaximum(): void
+    {
+        $client = $this->makeQuerriClient([]);
+
+        $this->expectException(ValidationException::class);
+        $client->embed->createSession(['user_id' => 'u_1', 'ttl' => 86401]);
+    }
+
+    public function testCreateSessionAcceptsTtlBounds(): void
+    {
+        $client = $this->makeQuerriClient([
+            new MockResponse('{}', ['http_code' => 200]),
+            new MockResponse('{}', ['http_code' => 200]),
+        ]);
+
+        $client->embed->createSession(['user_id' => 'u_1', 'ttl' => 900]);
+        $client->embed->createSession(['user_id' => 'u_1', 'ttl' => 86400]);
+
+        $this->assertCount(2, $this->recorded);
+    }
+
+    public function testCreateSessionRejectsOverlongOriginWithoutHttpCall(): void
+    {
+        $client = $this->makeQuerriClient([]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('origin must be at most 500 characters');
+        try {
+            $client->embed->createSession([
+                'user_id' => 'u_1',
+                'origin' => 'https://' . str_repeat('a', 500) . '.com',
+            ]);
+        } finally {
+            $this->assertCount(0, $this->recorded);
+        }
     }
 
     public function testRefreshSessionPostsSessionToken(): void

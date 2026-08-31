@@ -24,7 +24,7 @@ export default function EmbedPage() {
         style={{ width: '100%', height: '80vh', marginTop: '1rem' }}
         serverUrl={import.meta.env.VITE_QUERRI_URL || 'https://app.querri.com'}
         auth={auth}
-        chrome={{ sidebar: { show: true } }}
+        chrome={{ rail: { show: true } }}
         onReady={() => console.log('Embed ready')}
         onError={(err) => console.error('Embed error:', err)}
       />

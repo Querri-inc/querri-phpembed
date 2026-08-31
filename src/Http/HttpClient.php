@@ -16,7 +16,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 final class HttpClient
 {
     private readonly HttpClientInterface $client;
-    private readonly Config $config;
+    public readonly Config $config;
 
     public function __construct(Config $config, ?HttpClientInterface $client = null)
     {

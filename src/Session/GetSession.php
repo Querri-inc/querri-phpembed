@@ -53,6 +53,11 @@ final class GetSession
             );
         }
 
+        // Validate session parameters up front — before the user-resolution
+        // and policy API calls — so a bad ttl/origin fails fast and cheap.
+        EmbedResource::assertValidTtl($params['ttl'] ?? 3600);
+        EmbedResource::assertValidOrigin($params['origin'] ?? null);
+
         // --- Step 1: User Resolution ---
         $userResult = self::resolveUser($users, $params);
         $userId = $userResult['id'];

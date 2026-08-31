@@ -92,8 +92,9 @@ final class SharingResource extends BaseResource
      * Enable or disable org-wide sharing for a source.
      *
      * @param array{enabled: bool, permission?: string} $params
-     *   permission: one of SharingPermission::VIEW | SharingPermission::EDIT
-     * @return array<string, mixed>
+     *   enabled: true to share with the whole organization, false to unshare.
+     *   permission: one of SharingPermission::VIEW | SharingPermission::EDIT (default view)
+     * @return array{source_id: string, org_shared: bool}
      */
     public function orgShareSource(string $sourceId, array $params): array
     {

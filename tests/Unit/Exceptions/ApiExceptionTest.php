@@ -30,6 +30,7 @@ final class ApiExceptionTest extends TestCase
     {
         return [
             '400 → Validation' => [400, ValidationException::class],
+            '422 → Validation' => [422, ValidationException::class],
             '401 → Authentication' => [401, AuthenticationException::class],
             '403 → Permission' => [403, PermissionException::class],
             '404 → NotFound' => [404, NotFoundException::class],

@@ -47,7 +47,7 @@ try {
     //           'sources' => ['src_sales_data'],
     //           'filters' => ['tenant_id' => $authUser->tenantId],
     //       ],
-    //       'origin' => $_SERVER['HTTP_ORIGIN'] ?? null,
+    //       'origin' => ($_SERVER['HTTP_ORIGIN'] ?? '') ?: null,
     //       'ttl' => 3600,
     //   ]);
     //
@@ -73,7 +73,9 @@ try {
                 'tenant_id' => ['tenant_1', 'tenant_2'],
             ],
         ],
-        'origin' => $_SERVER['HTTP_ORIGIN'] ?? null,
+        // ?: (not ??) so an EMPTY Origin header also falls through to null —
+        // null makes the SDK use default_origin / QUERRI_EMBED_ORIGIN.
+        'origin' => ($_SERVER['HTTP_ORIGIN'] ?? '') ?: null,
         'ttl' => 3600,
     ]);
 
