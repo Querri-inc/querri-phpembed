@@ -94,7 +94,7 @@ which is transparent unless you inspected URLs.
 HTTP call. 0.2.0 sent the request and let the server clamp or reject.
 
 ```php
-// BEFORE (0.2.0) — server silently clamped ttl to 900
+// BEFORE (0.2.0) — server rejected it with a 422 only at request time
 $client->getSession(['user' => 'u', 'ttl' => 60]);
 
 // AFTER (1.0.0) — throws ValidationException locally; pass 900–86400

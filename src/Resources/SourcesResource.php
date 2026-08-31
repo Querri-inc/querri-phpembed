@@ -35,7 +35,7 @@ final class SourcesResource extends BaseResource
      * endpoint.
      *
      * @param array{name: string, rows: list<array<string, mixed>>} $params
-     * @return array{id: string, name: string, columns: array<int, string>}
+     * @return array{id: string, name: string, columns: array<int, string>, row_count: int, updated_at: string}
      */
     public function create(array $params): array
     {

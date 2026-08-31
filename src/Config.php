@@ -58,10 +58,11 @@ final readonly class Config
         $defaultOrigin ??= self::env('QUERRI_EMBED_ORIGIN');
         $host ??= self::env('QUERRI_URL') ?? 'https://app.querri.com';
         $host = rtrim($host, '/');
-        $baseUrl = str_ends_with($host, '/api/v1') ? $host : "{$host}/api/v1";
         // Strip any API-path suffix from host so consumers (e.g. UserQuerriClient)
-        // can use it as a bare origin without re-parsing baseUrl.
+        // can use it as a bare origin without re-parsing baseUrl — and so a host
+        // given as ".../api" or ".../api/v1" normalizes instead of doubling up.
         $bareHost = preg_replace('#/api(/v1)?$#', '', $host) ?? $host;
+        $baseUrl = "{$bareHost}/api/v1";
 
         return new self(
             apiKey: $apiKey,

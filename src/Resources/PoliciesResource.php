@@ -69,7 +69,7 @@ final class PoliciesResource extends BaseResource
      * Preferred: `$params = ['user_ids' => ['u_1', 'u_2']]`.
      * Legacy (deprecated since 0.2.0): passing a bare `string[]` list of
      * user IDs. The bare-list form is detected at runtime and wrapped into
-     * the shape form; it will be will be removed in the next major release.
+     * the shape form; it will be removed in the next major release.
      *
      * @param array{user_ids: string[]}|string[] $params
      * @return array<string, mixed>
@@ -102,7 +102,7 @@ final class PoliciesResource extends BaseResource
      * Preferred: `$params = ['policy_ids' => ['pol_1', 'pol_2']]`.
      * Legacy (deprecated since 0.2.0): passing a bare `string[]` list of
      * policy IDs. The bare-list form is detected at runtime and wrapped
-     * into the shape form; it will be will be removed in the next major release.
+     * into the shape form; it will be removed in the next major release.
      *
      * @param array{policy_ids: string[]}|string[] $params
      * @return array<string, mixed>

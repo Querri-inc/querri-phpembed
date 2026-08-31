@@ -39,7 +39,7 @@ final class DataResource extends BaseResource
      *
      * @param array{name: string, rows: list<array<string, mixed>>} $params
      *   rows must contain at least one row object.
-     * @return array{id: string, name: string, columns: array<int, string>}
+     * @return array{id: string, name: string, columns: array<int, string>, row_count: int, updated_at: string}
      */
     public function create(array $params): array
     {
@@ -127,7 +127,7 @@ final class DataResource extends BaseResource
     /**
      * @deprecated since 0.2.0; will be removed in the next major release. Use create() instead.
      * @param array{name: string, rows: list<array<string, mixed>>} $params
-     * @return array{id: string, name: string, columns: array<int, string>}
+     * @return array{id: string, name: string, columns: array<int, string>, row_count: int, updated_at: string}
      */
     public function createSource(array $params): array
     {

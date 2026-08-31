@@ -170,18 +170,11 @@ final class ConfigTest extends TestCase
         $this->assertSame($expected, $config->baseUrl);
     }
 
-    public function testResolveHostEndingInApiSlashProducesDoubleSlash(): void
+    public function testResolveHostEndingInApiSlashNormalizes(): void
     {
-        // Known bug: when host ends in '/api/', the current normalization produces
-        // '/api/api/v1' because rtrim only removes the trailing slash, not the '/api'
-        // segment. Captured here as a skipped test; fix in a dedicated follow-up.
-        $this->markTestSkipped(
-            "bug: Config produces '/api/api/v1' when host ends in '/api/' — fix in a follow-up PR",
-        );
-
-        // @phpstan-ignore-next-line (intentionally unreachable)
         $config = Config::resolve(apiKey: 'k', orgId: 'org_x', host: 'https://example.com/api/');
         $this->assertSame('https://example.com/api/v1', $config->baseUrl);
+        $this->assertSame('https://example.com', $config->host);
     }
 
     public function testForSessionUsesV1BaseUrl(): void
