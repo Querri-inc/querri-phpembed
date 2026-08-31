@@ -349,4 +349,4 @@ MIT
 
 ## Support policy
 
-Versions below 1.0.0 receive security fixes only, for 6 months from the 1.0.0 release (2026-08-31). Their data-surface methods call routes the server has removed; migrate with [MIGRATION.md](MIGRATION.md).
+Versions below 1.0.0 receive security fixes only, for 6 months from the 1.0.0 release (2026-08-31). Their data-surface methods call routes the server has removed; migrate with [docs/MIGRATION.md](docs/MIGRATION.md).
