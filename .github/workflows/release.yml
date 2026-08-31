@@ -18,6 +18,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify tag matches Config::VERSION
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          CODE_VERSION="$(grep -oP "public const VERSION = '\K[^']+" src/Config.php)"
+          if [ "$TAG_VERSION" != "$CODE_VERSION" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match Config::VERSION (${CODE_VERSION}). Bump src/Config.php before tagging."
+            exit 1
+          fi
+          echo "Tag ${GITHUB_REF_NAME} matches Config::VERSION ${CODE_VERSION}"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:

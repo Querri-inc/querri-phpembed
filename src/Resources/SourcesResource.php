@@ -28,8 +28,14 @@ final class SourcesResource extends BaseResource
     }
 
     /**
-     * @param array{name: string, connector_id: string, config: array<string, mixed>} $params
-     * @return array<string, mixed>
+     * Create a data source with inline JSON rows.
+     *
+     * The server binds POST /sources to {name, rows} (rows must contain at
+     * least one row object) — there is no connector-based create on this
+     * endpoint.
+     *
+     * @param array{name: string, rows: list<array<string, mixed>>} $params
+     * @return array{id: string, name: string, columns: array<int, string>}
      */
     public function create(array $params): array
     {
@@ -37,7 +43,11 @@ final class SourcesResource extends BaseResource
     }
 
     /**
-     * @param array{name?: string, config?: array<string, mixed>} $params
+     * Update source metadata and configuration.
+     *
+     * @param array{name?: string, description?: string, config?: array<string, mixed>, access_controlled?: bool} $params
+     *   access_controlled: when true, users without a matching access policy
+     *   see zero rows (fail-closed).
      * @return array<string, mixed>
      */
     public function update(string $sourceId, array $params): array

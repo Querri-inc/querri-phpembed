@@ -70,12 +70,12 @@ abstract class BaseResource
     }
 
     /**
-     * DELETE requests typically return HTTP 204 No Content, which HttpClient
-     * surfaces as an empty array (`[]`). Resource-level `del()` / `revoke()`
-     * methods that delegate here inherit that shape — callers should not
-     * rely on body content from DELETE responses.
+     * v1 DELETE endpoints return JSON bodies (e.g. `{id, revoked}` or
+     * `{id, deleted}`); a 204 No Content response is surfaced as an empty
+     * array (`[]`). Resource-level `del()` / `revoke()` methods that
+     * delegate here inherit that shape.
      *
-     * @return array{}
+     * @return array<string, mixed>
      */
     protected function delete(string $path): array
     {

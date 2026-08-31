@@ -258,30 +258,17 @@ final class HttpClientTest extends TestCase
             config: $config,
         );
 
-        $client->request(['method' => 'GET', 'path' => '/embed/dashboards/d_1']);
+        $client->request(['method' => 'GET', 'path' => '/dashboards/d_1']);
 
         $headers = $this->recordedNormalizedHeaders(0);
         $this->assertSame('sess_abc', $headers['x-embed-session']);
         $this->assertArrayNotHasKey('authorization', $headers);
+        // Session auth carries no org: the session itself binds the tenant,
+        // so no X-Tenant-ID header is sent.
         $this->assertArrayNotHasKey('x-tenant-id', $headers);
 
-        // forSession uses /api (not /api/v1)
-        $this->assertSame('https://example.com/api/embed/dashboards/d_1', $this->recorded[0]['url']);
-    }
-
-    public function testTenantHeaderOmittedWhenOrgIdNull(): void
-    {
-        $config = Config::resolve(apiKey: 'k', host: 'https://example.com');
-        // orgId is null
-        $client = $this->buildClient(
-            [new MockResponse('{}', ['http_code' => 200])],
-            config: $config,
-        );
-
-        $client->request(['method' => 'GET', 'path' => '/users']);
-
-        $headers = $this->recordedNormalizedHeaders(0);
-        $this->assertArrayNotHasKey('x-tenant-id', $headers);
+        // forSession targets the public /api/v1 API, same as API-key auth
+        $this->assertSame('https://example.com/api/v1/dashboards/d_1', $this->recorded[0]['url']);
     }
 
     public function testUserAgentHeaderIncludesVersion(): void

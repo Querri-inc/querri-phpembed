@@ -59,11 +59,15 @@ final class QuerriClient
     /**
      * Create a new Querri client.
      *
-     * @param string|array{api_key?: string, apiKey?: string, org_id?: string, orgId?: string, host?: string, timeout?: float, max_retries?: int, maxRetries?: int}|Config $config
-     *   - Pass an API key string: new QuerriClient('qk_...')
+     * @param string|array{api_key?: string, apiKey?: string, org_id?: string, orgId?: string, host?: string, timeout?: float, max_retries?: int, maxRetries?: int, default_origin?: string, defaultOrigin?: string}|Config $config
      *   - Pass a config array: new QuerriClient(['api_key' => 'qk_...', 'org_id' => 'org_...'])
-     *   - Pass a Config object: new QuerriClient(Config::resolve(apiKey: 'qk_...'))
-     *   - Pass nothing to read from environment variables: new QuerriClient()
+     *   - Pass a Config object: new QuerriClient(Config::resolve(apiKey: 'qk_...', orgId: 'org_...'))
+     *   - Pass an API key string (org read from QUERRI_ORG_ID): new QuerriClient('qk_...')
+     *   - Pass nothing to read everything from environment variables: new QuerriClient()
+     *
+     *   org_id is required — pass it or set QUERRI_ORG_ID. default_origin
+     *   (env QUERRI_EMBED_ORIGIN) is used when getSession()/createSession()
+     *   is called without an explicit origin.
      * @param HttpClientInterface|null $httpClient Optional Symfony HttpClient for testing/custom transport
      */
     public function __construct(string|array|Config $config = [], ?HttpClientInterface $httpClient = null)
@@ -78,6 +82,7 @@ final class QuerriClient
                 maxRetries: ($mr = $config['maxRetries'] ?? $config['max_retries'] ?? null) !== null
                     ? (int) $mr
                     : null,
+                defaultOrigin: $config['defaultOrigin'] ?? $config['default_origin'] ?? null,
             ),
             $config instanceof Config => $config,
         };

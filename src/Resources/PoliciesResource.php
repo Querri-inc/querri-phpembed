@@ -69,7 +69,7 @@ final class PoliciesResource extends BaseResource
      * Preferred: `$params = ['user_ids' => ['u_1', 'u_2']]`.
      * Legacy (deprecated since 0.2.0): passing a bare `string[]` list of
      * user IDs. The bare-list form is detected at runtime and wrapped into
-     * the shape form; it will be removed in 0.3.0.
+     * the shape form; it will be will be removed in the next major release.
      *
      * @param array{user_ids: string[]}|string[] $params
      * @return array<string, mixed>
@@ -102,7 +102,7 @@ final class PoliciesResource extends BaseResource
      * Preferred: `$params = ['policy_ids' => ['pol_1', 'pol_2']]`.
      * Legacy (deprecated since 0.2.0): passing a bare `string[]` list of
      * policy IDs. The bare-list form is detected at runtime and wrapped
-     * into the shape form; it will be removed in 0.3.0.
+     * into the shape form; it will be will be removed in the next major release.
      *
      * @param array{policy_ids: string[]}|string[] $params
      * @return array<string, mixed>
@@ -149,10 +149,10 @@ final class PoliciesResource extends BaseResource
         return $response['data'];
     }
 
-    // ─── Deprecated aliases (removed in 0.3.0) ──────────────────────
+    // ─── Deprecated aliases ──────────────────────
 
     /**
-     * @deprecated since 0.2.0, removed in 0.3.0. Use resolveAccess() instead.
+     * @deprecated since 0.2.0, will be removed in the next major release. Use resolveAccess() instead.
      * @return array<string, mixed>
      */
     public function resolve(string $userId, string $sourceId): array
@@ -161,7 +161,7 @@ final class PoliciesResource extends BaseResource
     }
 
     /**
-     * @deprecated since 0.2.0, removed in 0.3.0. Use listColumns() instead.
+     * @deprecated since 0.2.0, will be removed in the next major release. Use listColumns() instead.
      * @return array<int, array{source_id: string, source_name: string, columns: array<int, array<string, mixed>>}>
      */
     public function columns(?string $sourceId = null): array

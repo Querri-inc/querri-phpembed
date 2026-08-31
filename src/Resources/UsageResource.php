@@ -15,7 +15,7 @@ final class UsageResource extends BaseResource
      * Preferred: `$params = ['period' => 'current_month']`.
      * Legacy (deprecated since 0.2.0): passing `period` as a bare string.
      * The string form is detected at runtime and wrapped; will be removed
-     * in 0.3.0.
+     * in the next major release.
      *
      * @param string|array{period?: string} $params Optional period filter:
      *   "current_month" | "last_month" | "last_30_days"

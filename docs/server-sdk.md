@@ -48,7 +48,9 @@ try {
             'sources' => ['src_sales_data'],
             'filters' => ['tenant_id' => $authUser->tenantId],
         ],
-        'origin' => $_SERVER['HTTP_ORIGIN'] ?? null,
+        // ?: (not ??) so an EMPTY Origin header also falls through — a null
+        // origin makes the SDK use default_origin / QUERRI_EMBED_ORIGIN.
+        'origin' => ($_SERVER['HTTP_ORIGIN'] ?? '') ?: null,
         'ttl' => 3600,
     ]);
 
@@ -84,7 +86,9 @@ Route::post('/querri-session', function (Request $request) {
             'sources' => ['src_sales_data'],
             'filters' => ['tenant_id' => $user->tenant_id],
         ],
-        'origin' => $request->header('Origin'),
+        // ?: so a missing/empty Origin header falls back to the configured
+        // default_origin / QUERRI_EMBED_ORIGIN instead of an unbound session
+        'origin' => $request->header('Origin') ?: null,
     ]);
 
     return response()->json($session);
@@ -122,7 +126,7 @@ class QuerriSessionController extends AbstractController
                 'sources' => ['src_sales_data'],
                 'filters' => ['tenant_id' => $user->getTenantId()],
             ],
-            'origin' => $request->headers->get('Origin'),
+            'origin' => $request->headers->get('Origin') ?: null,
         ]);
 
         return $this->json($session);
@@ -229,7 +233,7 @@ Resolution order: explicit config value > `getenv()` > `$_ENV` > `$_SERVER` > de
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `api_key` | `string` | _(required)_ | Your Querri API key (`qk_...`) |
-| `org_id` | `string\|null` | `null` | Organization ID. Sent as `X-Tenant-ID` header. |
+| `org_id` | `string` | _(required)_ | Organization ID. Sent as `X-Tenant-ID` header; the API rejects requests without it. |
 | `host` | `string` | `https://app.querri.com` | API host. `/api/v1` is appended automatically. |
 | `timeout` | `float` | `30.0` | Request timeout in seconds |
 | `max_retries` | `int` | `3` | Max retry attempts on 429/5xx errors |
@@ -356,8 +360,8 @@ createSession(array $params): array
 ```php
 $session = $client->embed->createSession([
     'user_id' => 'user_abc123',
-    'origin' => 'https://myapp.com',
-    'ttl' => 7200,
+    'origin' => 'https://myapp.com',  // falls back to default_origin / QUERRI_EMBED_ORIGIN when omitted
+    'ttl' => 7200,                    // 900–86400 seconds; out-of-range throws ValidationException locally
 ]);
 // ['session_token' => '...', 'expires_in' => 7200, 'user_id' => 'user_abc123']
 ```
@@ -976,18 +980,21 @@ $client->data->del('src_abc123');
 
 > Renamed from `deleteSource()` in 0.2.0. `deleteSource()` still works as a deprecated alias until 0.3.0.
 
-#### `$client->data->query($params)`
+#### `$client->data->query($sourceId, $params)`
 
-Run a SQL query against a data source with RLS enforcement.
+Run a SQL query against a data source with RLS enforcement. The source ID is
+part of the path (`POST /sources/{source_id}/query`); the body carries the SQL
+and pagination.
 
 ```php
-query(array $params): array
+query(string $sourceId, array $params): array
 ```
 
 ```php
-$result = $client->data->query([
+$result = $client->data->query('src_abc123', [
     'sql' => 'SELECT region, SUM(revenue) FROM sales GROUP BY region',
-    'source_id' => 'src_abc123',
+    'page' => 1,
+    'page_size' => 100,
 ]);
 ```
 
@@ -1040,7 +1047,9 @@ $sources = $client->sources->list(['limit' => 50]);
 
 #### `$client->sources->create($params)`
 
-Create a new source from a connector.
+Create a data source with inline JSON rows — the API binds `POST /sources` to
+`{name, rows}` (there is no connector-based create on this endpoint; connectors
+are attached through the Querri app).
 
 ```php
 create(array $params): array
@@ -1048,9 +1057,10 @@ create(array $params): array
 
 ```php
 $source = $client->sources->create([
-    'name' => 'Production DB',
-    'connector_id' => 'conn_postgres',
-    'config' => ['host' => 'db.example.com', 'database' => 'analytics'],
+    'name' => 'Sales Data',
+    'rows' => [
+        ['region' => 'US', 'revenue' => 1000],
+    ],
 ]);
 ```
 
@@ -1396,21 +1406,21 @@ $dashboards = $userClient->dashboards->list();   // only dashboards Alice can ac
 
 ### How It Works
 
-`asUser()` creates a `UserQuerriClient` that calls the internal API (`/api/`) with the embed session token in the `X-Embed-Session` header. The internal API applies FGA filtering automatically — only resources the user has been granted access to (via `sharing.shareProject()`, `sharing.shareDashboard()`, etc.) are returned.
+`asUser()` creates a `UserQuerriClient` that calls the same public API (`/api/v1/`) with the embed session token in the `X-Embed-Session` header — embed sessions are the highest-priority credential on v1. The API applies FGA filtering automatically — only resources the user has been granted access to (via `sharing.shareProject()`, `sharing.shareDashboard()`, etc.) are returned.
 
-This is different from the admin `QuerriClient`, which calls the public API (`/api/v1/`) with an API key and returns all resources in the organization.
+This is different from the admin `QuerriClient`, which authenticates with an API key (plus `X-Tenant-ID`) and returns all resources in the organization.
 
 ### Available Resources
 
 | Resource | Example | Description |
 |----------|---------|-------------|
 | `$userClient->projects` | `->list()`, `->retrieve($id)`, `->run($id, $params)` | Projects the user can access |
-| `$userClient->dashboards` | `->list()`, `->retrieve($id)`, `->refresh($id)` | Dashboards the user can access |
+| `$userClient->dashboards` | `->list()`, `->retrieve($id)`, `->refreshStatus($id)` | Dashboards the user can access — **read-only**: embed sessions cannot create, update, delete, or refresh dashboards |
 | `$userClient->sources` | `->list()`, `->listConnectors()` | Data sources and connectors |
-| `$userClient->data` | `->query($params)`, `->getSourceData($id)` | Query data with RLS enforcement |
+| `$userClient->data` | `->query($id, $params)`, `->getSourceData($id)` | Query data with RLS enforcement |
 | `$userClient->chats` | `->create($projectId, $params)`, `->list($projectId)` | Chats within accessible projects |
 
-These are the same Resource classes used by the admin client — only the authentication and base URL differ.
+Except for the read-only dashboards surface, these are the same Resource classes used by the admin client — only the authentication differs.
 
 ### Granting Access
 
@@ -1483,7 +1493,7 @@ $session = $client->getSession([
     'origin' => 'https://myapp.com',
 ]);
 
-$session->sessionToken;  // string — JWT for the embed
+$session->sessionToken;  // string — opaque `es_…` session token for the embed
 $session->expiresIn;     // int — seconds until expiry
 $session->userId;        // string — Querri user ID
 $session->externalId;    // string|null — your external ID
@@ -1499,8 +1509,8 @@ $client->getSession(array $params): GetSessionResult
 |---|---|---|---|
 | `user` | `string\|array` | Yes | External ID string, or array with `external_id` + optional profile fields |
 | `access` | `array\|null` | No | Policy IDs or inline sources + filters |
-| `origin` | `string\|null` | No | Allowed origin for the embed iframe (CORS validation) |
-| `ttl` | `int` | No | Session lifetime in seconds (default: `3600`) |
+| `origin` | `string\|null` | No | Allowed origin for the embed iframe (CORS validation). Falls back to `default_origin` / `QUERRI_EMBED_ORIGIN` when omitted or null. Max 500 characters. |
+| `ttl` | `int` | No | Session lifetime in seconds, 900–86400 (default: `3600`). Out-of-range values throw `ValidationException` before any HTTP call. |
 
 ### Return Value: `GetSessionResult`
 
@@ -1753,7 +1763,9 @@ try {
             'sources' => ['src_sales_data'],
             'filters' => ['tenant_id' => $authUser->tenantId],
         ],
-        'origin' => $_SERVER['HTTP_ORIGIN'] ?? null,
+        // ?: (not ??) so an EMPTY Origin header also falls through — a null
+        // origin makes the SDK use default_origin / QUERRI_EMBED_ORIGIN.
+        'origin' => ($_SERVER['HTTP_ORIGIN'] ?? '') ?: null,
         'ttl' => 3600,
     ]);
 
@@ -1792,7 +1804,7 @@ export default function DashboardPage() {
       <QuerriEmbed
         serverUrl="https://app.querri.com"
         auth={auth}
-        startView="/builder/dashboard/your-dashboard-uuid"
+        startView="/dashboard/your-dashboard-uuid"
         onReady={() => console.log('Loaded')}
         onError={(err) => console.error(err)}
       />
@@ -1850,7 +1862,7 @@ Route::post('/querri-session', function (Request $request) {
                 'sources' => ['src_sales_data'],
                 'filters' => ['tenant_id' => $user->tenant_id],
             ],
-            'origin' => $request->header('Origin'),
+            'origin' => $request->header('Origin') ?: null,
             'ttl' => 3600,
         ]);
 
@@ -1893,7 +1905,7 @@ export default function Dashboard() {
       <QuerriEmbed
         serverUrl="https://app.querri.com"
         auth={auth}
-        startView="/builder/dashboard/your-dashboard-uuid"
+        startView="/dashboard/your-dashboard-uuid"
       />
     </div>
   );
@@ -1961,7 +1973,7 @@ class QuerriSessionController extends AbstractController
                     'sources' => ['src_sales_data'],
                     'filters' => ['tenant_id' => $user->getTenantId()],
                 ],
-                'origin' => $request->headers->get('Origin'),
+                'origin' => $request->headers->get('Origin') ?: null,
             ]);
 
             return $this->json($session);
@@ -2057,7 +2069,7 @@ export default function App() {
       <QuerriEmbed
         serverUrl="https://app.querri.com"
         auth={auth}
-        startView="/builder/dashboard/your-dashboard-uuid"
+        startView="/dashboard/your-dashboard-uuid"
         onReady={() => console.log('Querri embed loaded')}
         onError={(err) => console.error('Embed error:', err)}
       />

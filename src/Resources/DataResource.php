@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Querri\Embed\Resources;
 
 /**
- * Data API — query data sources with automatic RLS enforcement.
+ * Data API — create and query data sources with automatic RLS enforcement.
+ *
+ * All endpoints live under /sources: the server's standalone /data/* routes
+ * were merged into the sources router, so this resource and SourcesResource
+ * address the same objects — this one focuses on row-level data access.
  */
 final class DataResource extends BaseResource
 {
@@ -17,7 +21,7 @@ final class DataResource extends BaseResource
      */
     public function list(?array $params = null): array
     {
-        return $this->get('/data/sources', $params);
+        return $this->get('/sources', $params);
     }
 
     /**
@@ -27,18 +31,19 @@ final class DataResource extends BaseResource
      */
     public function retrieve(string $sourceId): array
     {
-        return $this->get('/data/sources/' . rawurlencode($sourceId));
+        return $this->get('/sources/' . rawurlencode($sourceId));
     }
 
     /**
      * Create a data source with inline JSON rows.
      *
-     * @param array{name: string, rows: array<array<string, mixed>>} $params
-     * @return array{id: string, name: string, columns: array<int, array<string, mixed>>, row_count: int, updated_at: string}
+     * @param array{name: string, rows: list<array<string, mixed>>} $params
+     *   rows must contain at least one row object.
+     * @return array{id: string, name: string, columns: array<int, string>}
      */
     public function create(array $params): array
     {
-        return $this->post('/data/sources', $params);
+        return $this->post('/sources', $params);
     }
 
     /**
@@ -48,57 +53,60 @@ final class DataResource extends BaseResource
      */
     public function del(string $sourceId): array
     {
-        return $this->delete('/data/sources/' . rawurlencode($sourceId));
+        return $this->delete('/sources/' . rawurlencode($sourceId));
     }
 
     /**
      * Append rows to an existing data source. Columns are union-merged.
      *
-     * @param array{rows: array<array<string, mixed>>} $params
+     * @param array{rows: list<array<string, mixed>>} $params
      * @return array<string, mixed>
      */
     public function appendRows(string $sourceId, array $params): array
     {
-        return $this->post('/data/sources/' . rawurlencode($sourceId) . '/rows', $params);
+        return $this->post('/sources/' . rawurlencode($sourceId) . '/rows', $params);
     }
 
     /**
      * Replace all data in a source.
      *
-     * @param array{rows: array<array<string, mixed>>} $params
+     * @param array{rows: list<array<string, mixed>>} $params
      * @return array<string, mixed>
      */
     public function replaceData(string $sourceId, array $params): array
     {
-        return $this->put('/data/sources/' . rawurlencode($sourceId) . '/data', $params);
+        return $this->put('/sources/' . rawurlencode($sourceId) . '/data', $params);
     }
 
     /**
      * Execute a SQL query against a data source.
      *
-     * @param array{sql: string, source_id: string, page?: int, page_size?: int} $params
-     * @return array<string, mixed>
+     * The source ID is part of the path (POST /sources/{source_id}/query);
+     * the body carries the SQL and pagination only.
+     *
+     * @param array{sql: string, page?: int, page_size?: int} $params
+     * @return array{data: array<int, array<string, mixed>>, total_rows: int, page: int, page_size: int}
      */
-    public function query(array $params): array
+    public function query(string $sourceId, array $params): array
     {
-        return $this->post('/data/query', $params);
+        return $this->post('/sources/' . rawurlencode($sourceId) . '/query', $params);
     }
 
     /**
      * Get paginated data from a source.
      *
-     * @param array<string, mixed>|null $params
+     * @param array{page?: int, page_size?: int}|null $params
      * @return array<string, mixed>
      */
     public function getSourceData(string $sourceId, ?array $params = null): array
     {
-        return $this->get('/data/sources/' . rawurlencode($sourceId) . '/data', $params);
+        return $this->get('/sources/' . rawurlencode($sourceId) . '/data', $params);
     }
 
-    // ─── Deprecated aliases (removed in 0.3.0) ──────────────────────
+    // ─── Deprecated aliases ─────────────────────────────────────────
 
     /**
-     * @deprecated since 0.2.0, removed in 0.3.0. Use list() instead.
+     * @deprecated since 0.2.0; will be removed in the next major release. Use list() instead.
      * @param array{limit?: int, after?: string}|null $params
      * @return array{data: array<int, array<string, mixed>>, has_more: bool, next_cursor: string|null}
      */
@@ -108,7 +116,7 @@ final class DataResource extends BaseResource
     }
 
     /**
-     * @deprecated since 0.2.0, removed in 0.3.0. Use retrieve() instead.
+     * @deprecated since 0.2.0; will be removed in the next major release. Use retrieve() instead.
      * @return array<string, mixed>
      */
     public function getSource(string $sourceId): array
@@ -117,9 +125,9 @@ final class DataResource extends BaseResource
     }
 
     /**
-     * @deprecated since 0.2.0, removed in 0.3.0. Use create() instead.
-     * @param array{name: string, rows: array<array<string, mixed>>} $params
-     * @return array{id: string, name: string, columns: array<int, array<string, mixed>>, row_count: int, updated_at: string}
+     * @deprecated since 0.2.0; will be removed in the next major release. Use create() instead.
+     * @param array{name: string, rows: list<array<string, mixed>>} $params
+     * @return array{id: string, name: string, columns: array<int, string>}
      */
     public function createSource(array $params): array
     {
@@ -127,7 +135,7 @@ final class DataResource extends BaseResource
     }
 
     /**
-     * @deprecated since 0.2.0, removed in 0.3.0. Use del() instead.
+     * @deprecated since 0.2.0; will be removed in the next major release. Use del() instead.
      * @return array<string, mixed>
      */
     public function deleteSource(string $sourceId): array

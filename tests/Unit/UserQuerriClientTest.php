@@ -7,10 +7,10 @@ namespace Querri\Embed\Tests\Unit;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Querri\Embed\Config;
 use Querri\Embed\Resources\ChatsResource;
-use Querri\Embed\Resources\DashboardsResource;
 use Querri\Embed\Resources\DataResource;
 use Querri\Embed\Resources\ProjectsResource;
 use Querri\Embed\Resources\SourcesResource;
+use Querri\Embed\Resources\UserDashboardsResource;
 use Querri\Embed\Session\GetSessionResult;
 use Querri\Embed\UserQuerriClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
@@ -31,6 +31,7 @@ final class UserQuerriClientTest extends MockHttpTestCase
     {
         return Config::resolve(
             apiKey: 'qk_parent',
+            orgId: 'org_parent',
             host: 'https://example.com',
         );
     }
@@ -51,7 +52,7 @@ final class UserQuerriClientTest extends MockHttpTestCase
     {
         return [
             'projects' => ['projects', ProjectsResource::class],
-            'dashboards' => ['dashboards', DashboardsResource::class],
+            'dashboards' => ['dashboards', UserDashboardsResource::class],
             'sources' => ['sources', SourcesResource::class],
             'data' => ['data', DataResource::class],
             'chats' => ['chats', ChatsResource::class],
@@ -87,7 +88,7 @@ final class UserQuerriClientTest extends MockHttpTestCase
 
     // ─── HTTP behavior (via injected transport) ─────────────────────
 
-    public function testRequestsUseInternalApiBaseUrlNotV1(): void
+    public function testRequestsUsePublicV1BaseUrl(): void
     {
         $client = $this->makeInjectedUserClient(
             new MockResponse('{"data":[],"has_more":false,"next_cursor":null}', ['http_code' => 200]),
@@ -95,10 +96,29 @@ final class UserQuerriClientTest extends MockHttpTestCase
 
         $client->projects->list();
 
-        // UserQuerriClient targets /api/ (internal), not /api/v1/
-        $this->assertStringStartsWith('https://example.com/api/', $this->recorded[0]['url']);
-        $this->assertStringNotContainsString('/api/v1/', $this->recorded[0]['url']);
+        // UserQuerriClient targets the public /api/v1 API — X-Embed-Session
+        // is the highest-priority credential there.
+        $this->assertStringStartsWith('https://example.com/api/v1/', $this->recorded[0]['url']);
         $this->assertStringEndsWith('/projects', $this->recorded[0]['url']);
+    }
+
+    public function testDashboardsSurfaceIsReadOnly(): void
+    {
+        // Embed sessions lack the admin:dashboards:write scope server-side;
+        // the user-scoped surface must not offer the write methods at all.
+        $client = new UserQuerriClient($this->makeSession(), $this->makeParentConfig());
+        $dashboards = $client->dashboards;
+
+        $this->assertInstanceOf(UserDashboardsResource::class, $dashboards);
+        foreach (['create', 'update', 'del', 'refresh'] as $writeMethod) {
+            $this->assertFalse(
+                method_exists($dashboards, $writeMethod),
+                "UserDashboardsResource must not expose write method {$writeMethod}()",
+            );
+        }
+        $this->assertTrue(method_exists($dashboards, 'list'));
+        $this->assertTrue(method_exists($dashboards, 'retrieve'));
+        $this->assertTrue(method_exists($dashboards, 'refreshStatus'));
     }
 
     public function testSendsEmbedSessionHeaderNotBearer(): void
@@ -140,6 +160,7 @@ final class UserQuerriClientTest extends MockHttpTestCase
         $session = new GetSessionResult('t', 10, 'u');
         $parent = Config::resolve(
             apiKey: 'qk',
+            orgId: 'org_x',
             host: 'https://custom.example.com/api/v1',
         );
 
@@ -149,11 +170,11 @@ final class UserQuerriClientTest extends MockHttpTestCase
             $this->makeMockTransport([new MockResponse('{}', ['http_code' => 200])]),
         );
 
-        $client->data->listSources();
+        $client->data->list();
 
-        // Parent's /api/v1 suffix should be stripped at Config level; the user
-        // client then appends /api (not /api/v1) for the internal endpoints.
-        $this->assertStringStartsWith('https://custom.example.com/api/', $this->recorded[0]['url']);
-        $this->assertStringNotContainsString('/api/v1/', $this->recorded[0]['url']);
+        // Parent's /api/v1 suffix is stripped at Config level to a bare host;
+        // the user client then re-appends /api/v1 without doubling it.
+        $this->assertStringStartsWith('https://custom.example.com/api/v1/', $this->recorded[0]['url']);
+        $this->assertStringNotContainsString('/api/v1/api', $this->recorded[0]['url']);
     }
 }

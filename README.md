@@ -23,14 +23,17 @@ composer require querri/embed
 ```php
 use Querri\Embed\QuerriClient;
 
-$client = new QuerriClient('qk_your_api_key');
+$client = new QuerriClient([
+    'api_key' => 'qk_your_api_key',
+    'org_id'  => 'org_your_org_id',
+]);
 
 $session = $client->getSession([
     'user' => 'customer-42',  // external ID from your system
     'ttl'  => 3600,
 ]);
 
-echo $session->sessionToken;  // JWT to pass to the frontend
+echo $session->sessionToken;  // opaque `es_…` session token to pass to the frontend
 ```
 
 ### 3. Add the embed (React)
@@ -49,10 +52,15 @@ import { QuerriEmbed } from '@querri-inc/embed/react';
 
 ```php
 // public/api/querri-session.php (or your framework's route handler)
-$client = new QuerriClient();  // reads QUERRI_API_KEY from env
+$client = new QuerriClient();  // reads QUERRI_API_KEY + QUERRI_ORG_ID from env
 $session = $client->getSession([
-    'user' => ['external_id' => $authUser->id, 'email' => $authUser->email],
-    'ttl'  => 3600,
+    'user'   => ['external_id' => $authUser->id, 'email' => $authUser->email],
+    // ?: (not ??) so an EMPTY Origin header also falls through to null —
+    // same-origin requests and some proxies send none. A null origin makes
+    // the SDK use your configured default_origin / QUERRI_EMBED_ORIGIN
+    // instead of silently minting a session with no origin binding.
+    'origin' => ($_SERVER['HTTP_ORIGIN'] ?? '') ?: null,
+    'ttl'    => 3600,
 ]);
 header('Content-Type: application/json');
 echo json_encode($session);
@@ -86,25 +94,27 @@ The SDK reads configuration from constructor arguments or environment variables:
 | Parameter | Env Variable | Default | Description |
 |-----------|-------------|---------|-------------|
 | `api_key` | `QUERRI_API_KEY` | _(required)_ | Your Querri API key (`qk_...`) |
-| `org_id` | `QUERRI_ORG_ID` | `null` | Organization ID |
+| `org_id` | `QUERRI_ORG_ID` | _(required)_ | Organization ID — every API call needs it (sent as `X-Tenant-ID`) |
 | `host` | `QUERRI_URL` | `https://app.querri.com` | Querri API host |
 | `timeout` | — | `30.0` | Request timeout in seconds |
 | `max_retries` | — | `3` | Max retries on 429/5xx errors |
+| `default_origin` | `QUERRI_EMBED_ORIGIN` | `null` | Origin used for embed sessions when no explicit `origin` is passed |
 
 ```php
-// Read from environment variables
+// Read from environment variables (QUERRI_API_KEY + QUERRI_ORG_ID)
 $client = new QuerriClient();
 
-// API key string shorthand
+// API key string shorthand (org_id still read from QUERRI_ORG_ID)
 $client = new QuerriClient('qk_...');
 
 // Full config array
 $client = new QuerriClient([
     'api_key'     => 'qk_...',
     'org_id'      => 'org_...',
-    'host'        => 'https://app.querri.com',
-    'timeout'     => 30.0,
-    'max_retries' => 3,
+    'host'           => 'https://app.querri.com',
+    'timeout'        => 30.0,
+    'max_retries'    => 3,
+    'default_origin' => 'https://app.yoursite.com',  // or QUERRI_EMBED_ORIGIN
 ]);
 ```
 
@@ -114,7 +124,7 @@ The flagship method that creates an embed session in three steps:
 
 1. **User resolution** — creates or retrieves a Querri user by your external ID
 2. **Access policy** — auto-creates or reuses a deterministic policy with row-level filters
-3. **Session creation** — generates a JWT token for the embed iframe
+3. **Session creation** — generates an opaque `es_…` session token for the embed iframe
 
 ### With inline access rules
 
@@ -149,7 +159,7 @@ $session = $client->getSession([
 ### GetSessionResult
 
 ```php
-$session->sessionToken;  // string — JWT for the embed
+$session->sessionToken;  // string — opaque `es_…` session token for the embed
 $session->expiresIn;     // int — seconds until expiry
 $session->userId;        // string — Querri user ID
 $session->externalId;    // string|null — your external ID
@@ -188,7 +198,7 @@ $policy = $client->policies->create([
     ],
 ]);
 
-$client->policies->assignUsers($policy['id'], ['usr_abc123']);
+$client->policies->assignUsers($policy['id'], ['user_ids' => ['usr_abc123']]);
 $client->policies->removeUser($policy['id'], 'usr_abc123');
 ```
 
@@ -214,7 +224,7 @@ Beyond the core embed resources above, the SDK provides full access to the Querr
 | `$client->dashboards` | Dashboard management | `list`, `create`, `retrieve`, `update`, `del`, `refresh` |
 | `$client->projects` | Analysis projects | `list`, `create`, `retrieve`, `run`, `runStatus` |
 | `$client->chats` | Chats within projects | `create`, `list`, `retrieve`, `del`, `cancel` |
-| `$client->data` | Data sources & queries | `listSources`, `createSource`, `query`, `appendRows` |
+| `$client->data` | Data sources & queries | `list`, `create`, `query`, `appendRows` |
 | `$client->sources` | Connectors & sync | `listConnectors`, `list`, `create`, `sync` |
 | `$client->files` | File management | `list`, `retrieve`, `del` |
 | `$client->keys` | API key management | `create`, `list`, `retrieve`, `revoke` |
@@ -234,7 +244,7 @@ QuerriException
 ├── ConnectionException      — network failures (auto-retried)
 │   └── TimeoutException     — request timeout exceeded
 └── ApiException             — HTTP error responses
-    ├── ValidationException  — 400
+    ├── ValidationException  — 400/422 (also thrown client-side for invalid ttl/origin)
     ├── AuthenticationException — 401
     ├── PermissionException  — 403
     ├── NotFoundException    — 404
@@ -279,9 +289,10 @@ See **[docs/server-sdk.md](docs/server-sdk.md)** for the complete API reference,
 
 ## Troubleshooting
 
-### "API key is required" error
+### "API key is required" / "Organization ID is required" errors
 
-Set the `QUERRI_API_KEY` environment variable. Find your API key at [app.querri.com/settings/api-keys](https://app.querri.com/settings/api-keys).
+Set the `QUERRI_API_KEY` and `QUERRI_ORG_ID` environment variables (both are
+required since 1.0.0). Find your API key at [app.querri.com/settings/api-keys](https://app.querri.com/settings/api-keys).
 
 ```bash
 # .env or your server config
@@ -320,6 +331,8 @@ require_once __DIR__ . '/vendor/autoload.php';
 ## Important Notes
 
 - This SDK uses the **Server Token** auth mode. Your PHP backend creates session tokens and the frontend embed consumes them. For other auth modes (Share Key, Popup Login), see the [JS SDK docs](https://www.npmjs.com/package/@querri-inc/embed).
+- Pair this release with [`@querri-inc/embed`](https://www.npmjs.com/package/@querri-inc/embed) `^1.0.0` on the frontend.
+- The session token is an opaque `es_…` string, not a JWT — don't try to decode or verify it client-side; pass it through as-is.
 - **React/Vue/Angular:** Memoize the `auth` prop if it's an object. A new object reference on every render cycle causes the iframe to be destroyed and recreated.
 - The PHP SDK covers the full Querri API (all 13 resources). For frontend-only use cases, see the [JS SDK](https://www.npmjs.com/package/@querri-inc/embed).
 

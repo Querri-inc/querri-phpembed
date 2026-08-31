@@ -27,22 +27,25 @@ final class SourcesResourceTest extends MockHttpTestCase
         $this->assertStringEndsWith('/sources', $this->recorded[0]['url']);
     }
 
-    public function testCreatePosts(): void
+    public function testCreatePostsNameAndRows(): void
     {
-        $client = $this->makeQuerriClient([new MockResponse('{}', ['http_code' => 200])]);
+        $client = $this->makeQuerriClient([new MockResponse('{}', ['http_code' => 201])]);
         $client->sources->create([
             'name' => 'S',
-            'connector_id' => 'c_1',
-            'config' => ['url' => 'x'],
+            'rows' => [['id' => 1]],
         ]);
         $this->assertSame('POST', $this->recorded[0]['method']);
+        $this->assertStringEndsWith('/sources', $this->recorded[0]['url']);
+        $this->assertSame('{"name":"S","rows":[{"id":1}]}', $this->recorded[0]['body']);
     }
 
     public function testUpdatePatches(): void
     {
         $client = $this->makeQuerriClient([new MockResponse('{}', ['http_code' => 200])]);
-        $client->sources->update('s_1', ['name' => 'x']);
+        $client->sources->update('s_1', ['name' => 'x', 'description' => 'd']);
         $this->assertSame('PATCH', $this->recorded[0]['method']);
+        $this->assertStringEndsWith('/sources/s_1', $this->recorded[0]['url']);
+        $this->assertSame('{"name":"x","description":"d"}', $this->recorded[0]['body']);
     }
 
     public function testDelDeletes(): void

@@ -12,7 +12,7 @@ use Querri\Embed\Exceptions\ConfigException;
  */
 final readonly class Config
 {
-    public const VERSION = '0.2.0';
+    public const VERSION = '1.0.0';
 
     private function __construct(
         public string $apiKey,
@@ -23,12 +23,14 @@ final readonly class Config
         public int $maxRetries,
         public string $userAgent,
         public ?string $sessionToken = null,
+        public ?string $defaultOrigin = null,
     ) {
     }
 
     /**
      * Resolve config from explicit values, falling back to environment
-     * variables (QUERRI_API_KEY, QUERRI_ORG_ID, QUERRI_URL), then defaults.
+     * variables (QUERRI_API_KEY, QUERRI_ORG_ID, QUERRI_URL,
+     * QUERRI_EMBED_ORIGIN), then defaults.
      */
     public static function resolve(
         ?string $apiKey = null,
@@ -36,6 +38,7 @@ final readonly class Config
         ?string $host = null,
         ?float $timeout = null,
         ?int $maxRetries = null,
+        ?string $defaultOrigin = null,
     ): self {
         $apiKey ??= self::env('QUERRI_API_KEY');
         if ($apiKey === null || $apiKey === '') {
@@ -45,6 +48,14 @@ final readonly class Config
         }
 
         $orgId ??= self::env('QUERRI_ORG_ID');
+        if ($orgId === null || $orgId === '') {
+            throw new ConfigException(
+                'Organization ID is required — the API rejects every request without an X-Tenant-ID header. '
+                . 'Pass org_id in the config or set the QUERRI_ORG_ID environment variable.',
+            );
+        }
+
+        $defaultOrigin ??= self::env('QUERRI_EMBED_ORIGIN');
         $host ??= self::env('QUERRI_URL') ?? 'https://app.querri.com';
         $host = rtrim($host, '/');
         $baseUrl = str_ends_with($host, '/api/v1') ? $host : "{$host}/api/v1";
@@ -60,12 +71,15 @@ final readonly class Config
             timeout: $timeout ?? 30.0,
             maxRetries: $maxRetries ?? 3,
             userAgent: 'querri-php/' . self::VERSION,
+            defaultOrigin: $defaultOrigin,
         );
     }
 
     /**
-     * Create a session-based config for the internal API.
-     * Uses X-Embed-Session auth and /api/ base URL instead of /api/v1/.
+     * Create a session-based config for user-scoped calls.
+     * Uses X-Embed-Session auth against the same /api/v1 public API —
+     * embed sessions are priority-0 auth on v1, so the base URL matches
+     * the API-key client and no X-Tenant-ID header is needed.
      */
     public static function forSession(
         string $sessionToken,
@@ -81,7 +95,7 @@ final readonly class Config
             apiKey: '',
             orgId: null,
             host: $bareHost,
-            baseUrl: "{$bareHost}/api",
+            baseUrl: "{$bareHost}/api/v1",
             timeout: $timeout ?? 30.0,
             maxRetries: $maxRetries ?? 3,
             userAgent: 'querri-php/' . self::VERSION,

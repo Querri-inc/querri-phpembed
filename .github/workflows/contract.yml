@@ -1,0 +1,73 @@
+name: Contract check
+
+# Weekly drift check: every path+method the SDK calls (per
+# tests/fixtures/openapi.snapshot.json) must still exist in the live
+# /api/v1 OpenAPI schema. Skips neutrally when the endpoint is
+# unreachable; fails when it is reachable and a path is missing.
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'  # Mondays 06:17 UTC
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch live OpenAPI schema
+        id: fetch
+        run: |
+          BASE="${QUERRI_CONTRACT_BASE:-https://app.querri.com}"
+          echo "Fetching ${BASE}/api/v1/openapi.json"
+          if curl -fsS --max-time 30 -o openapi.live.json "${BASE}/api/v1/openapi.json"; then
+            echo "reachable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "reachable=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::OpenAPI endpoint unreachable — skipping contract check"
+          fi
+        env:
+          QUERRI_CONTRACT_BASE: ${{ vars.QUERRI_CONTRACT_BASE }}
+
+      - name: Compare SDK surface against live schema
+        if: steps.fetch.outputs.reachable == 'true'
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          import sys
+
+          def normalize(path: str) -> str:
+              # Anonymize {param} names and strip any /api/v1 mount prefix so
+              # snapshot templates compare against however FastAPI reports them.
+              path = re.sub(r"^/api/v1", "", path) or "/"
+              path = re.sub(r"^/v1", "", path) or "/"
+              return re.sub(r"\{[^}]*\}", "{}", path)
+
+          with open("tests/fixtures/openapi.snapshot.json") as f:
+              snapshot = json.load(f)["paths"]
+          with open("openapi.live.json") as f:
+              live = json.load(f)["paths"]
+
+          http_methods = {"get", "post", "put", "patch", "delete", "head", "options"}
+          live_surface = set()
+          for path, ops in live.items():
+              for method in ops:
+                  if method.lower() in http_methods:
+                      live_surface.add((method.lower(), normalize(path)))
+
+          missing = []
+          for path, methods in snapshot.items():
+              for method in methods:
+                  if (method.lower(), normalize(path)) not in live_surface:
+                      missing.append(f"{method.upper()} {path}")
+
+          if missing:
+              print("SDK calls these paths, but the live OpenAPI schema no longer has them:")
+              for entry in sorted(missing):
+                  print(f"  {entry}")
+              sys.exit(1)
+
+          print(f"OK: all {sum(len(m) for m in snapshot.values())} SDK path+method pairs present in live schema")
+          PY

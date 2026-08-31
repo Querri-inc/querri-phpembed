@@ -5,6 +5,78 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Prior to `1.0.0`, minor version bumps may contain breaking changes.
 
+## [1.0.0] — 2026-08-31
+
+First stable release. Aligns the SDK with the current `/api/v1` server
+contract; several 0.2.0 method shapes matched endpoints that no longer
+exist and returned 404s.
+
+### Breaking
+
+- **`org_id` is required at construct time.** `Config::resolve()` now throws
+  `ConfigException` when no organization ID is passed and `QUERRI_ORG_ID` is
+  unset — the API rejects every request without an `X-Tenant-ID` header, so
+  a client without one could never make a successful call.
+- **`DataResource` repointed from `/data/*` to `/sources/*`.** The server
+  merged the standalone data routes into the sources router; the old paths
+  404 on current servers. Method names are unchanged except:
+  - `query()` is now `query(string $sourceId, array $params)` — the source
+    ID moved from the request body to the path
+    (`POST /sources/{id}/query`); the body carries `{sql, page?, page_size?}`.
+  - **Alias behavior change:** the deprecated `listSources()`/`getSource()`/
+    `createSource()`/`deleteSource()` aliases are still present and now
+    target the working `/sources/*` endpoints — calls that 404'd on 0.2.0
+    now succeed.
+- **`SourcesResource::create()` takes `{name, rows}`** (inline JSON rows,
+  matching the server's `POST /sources` binding), not
+  `{name, connector_id, config}` — the connector-based shape was never
+  accepted by this endpoint. `update()` now documents the full server
+  shape `{name?, description?, config?, access_controlled?}`.
+- **`UserQuerriClient` targets `/api/v1` (was the internal `/api/`)** —
+  embed sessions are the highest-priority credential on the public v1 API.
+  Its `dashboards` surface is now the read-only `UserDashboardsResource`
+  (`list`, `retrieve`, `refreshStatus`): embed sessions lack the
+  `admin:dashboards:write` scope server-side, so `create`/`update`/`del`/
+  `refresh` could only ever fail at runtime.
+- **`BaseResource::delete()` is typed `array<string, mixed>`** (was
+  `array{}`): v1 DELETE endpoints return bodies such as `{id, revoked}`.
+
+### Added
+
+- **`default_origin` config option + `QUERRI_EMBED_ORIGIN` env var** — used
+  by `getSession()` and `embed->createSession()` when the caller passes no
+  origin, so a missing `Origin` header no longer silently mints a session
+  without origin binding.
+- **Client-side validation guards**: `ttl` outside `[900, 86400]` or an
+  `origin` longer than 500 characters throws `ValidationException` before
+  any HTTP call (in both `createSession()` and `getSession()`).
+- **422 responses now map to `ValidationException`** (was generic
+  `ApiException`), keeping the Pydantic-detail message synthesis.
+- **Contract surface test + snapshot**
+  (`tests/fixtures/openapi.snapshot.json`,
+  `tests/Unit/ContractSurfaceTest.php`) asserting every path the SDK builds
+  is in the snapshot, and a scheduled weekly workflow
+  (`.github/workflows/contract.yml`) checking the snapshot against the live
+  OpenAPI schema.
+- **Release tag guard**: the release workflow fails when the pushed tag
+  doesn't match `Config::VERSION`.
+
+### Fixed
+
+- `SharingResource::orgShareSource()` docblocks now state the actual
+  request/response contract (`{enabled, permission}` →
+  `{source_id, org_shared}`); the endpoint was restored server-side with an
+  unchanged contract.
+- Documentation: the session token is an opaque `es_…` string, not a JWT;
+  `startView` examples use `/dashboard/…` (the `/builder/…` paths were
+  retired); example app chrome uses `{ rail: { show: true } }`; README and
+  snippets use `?:` (not `??`) for the `HTTP_ORIGIN` fallback so empty
+  headers also fall back to the configured default origin.
+
+See `docs/MIGRATION.md` for before/after snippets.
+
+---
+
 ## [0.2.0] — 2026-04-23
 
 ### Added

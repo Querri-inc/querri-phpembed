@@ -110,7 +110,7 @@ class ApiException extends QuerriException
         }
 
         $exception = match ($status) {
-            400 => ValidationException::fromResponse($status, $body, $headers),
+            400, 422 => ValidationException::fromResponse($status, $body, $headers),
             401 => AuthenticationException::fromResponse($status, $body, $headers),
             403 => PermissionException::fromResponse($status, $body, $headers),
             404 => NotFoundException::fromResponse($status, $body, $headers),
