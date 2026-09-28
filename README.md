@@ -292,7 +292,7 @@ See **[docs/server-sdk.md](docs/server-sdk.md)** for the complete API reference,
 ### "API key is required" / "Organization ID is required" errors
 
 Set the `QUERRI_API_KEY` and `QUERRI_ORG_ID` environment variables (both are
-required since 1.0.0). Find your API key at [app.querri.com/settings/api-keys](https://app.querri.com/settings/api-keys).
+required since 1.0.0). An org admin creates API keys at [app.querri.com/settings/api](https://app.querri.com/settings/api).
 
 ```bash
 # .env or your server config
