@@ -5,6 +5,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Prior to `1.0.0`, minor version bumps may contain breaking changes.
 
+## [1.0.1] — 2026-09-28
+
+No code change: `Config::VERSION` (and so the `querri-php/…` user agent) is the
+only difference from 1.0.0.
+
+### Fixed
+
+- README: "API key is required" pointed at `app.querri.com/settings/api-keys`,
+  which was never a page. API keys are created at `/settings/api`, by an org
+  admin.
+
 ## [1.0.0] — 2026-08-31
 
 First stable release. Aligns the SDK with the current `/api/v1` server
