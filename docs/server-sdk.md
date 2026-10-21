@@ -372,11 +372,12 @@ $session = $client->embed->createSession([
     'role' => 'analyst',              // optional Custom Role id or key (max 100 chars)
 ]);
 // ['session_token' => '...', 'expires_in' => 7200, 'user_id' => 'user_abc123', 'role_id' => 'role_…']
+// role_id can also be a built-in role id such as 'system:creator'
 ```
 
 `role` runs the session as one of the organization's custom roles. It is **not** the `role` you pass
 to `users->getOrCreate()` (that is the org role, `admin`/`member`). The response carries `role_id`
-only when a role was applied. Rules, checked in this order:
+only when a role was applied. An empty string is treated like no `role`. Rules, checked in this order:
 
 | Situation | Result |
 |---|---|
@@ -385,7 +386,7 @@ only when a role was applied. Rules, checked in this order:
 | A draft role | `PermissionException`, `role_disabled` |
 | A role the user already holds | Selected — no extra scope needed |
 | Key lacks `embed:role:assign` | `PermissionException`, `insufficient_scope` |
-| Role not on the embed allow-list (Settings → Embed), or the key's creator lacks one of its permissions | `PermissionException`, `role_not_allowed` |
+| Role not on the embed allow-list (Settings → Embed), or the person the key acts for (its bound user, else its creator) doesn't hold every permission in it | `PermissionException`, `role_not_allowed` |
 | Role would need a creator seat | `PermissionException`, `seat_change_required` |
 | Otherwise | Granted to the user (audited as `role.assign`) and selected |
 
@@ -406,6 +407,8 @@ $refreshed = $client->embed->refreshSession('sess_token_...');
 ```
 
 The new token keeps the old session's role; `role_id` is present when the session has one.
+Servers released after 2026-10-21 also return `role_id` from refresh and list; earlier servers return
+it only from create.
 
 #### `$client->embed->listSessions($params)`
 
@@ -418,7 +421,9 @@ listSessions(?array $params = null): array
 ```php
 $sessions = $client->embed->listSessions(['limit' => 50]);
 // ['data' => [...], 'has_more' => true, 'next_cursor' => 'cur_...']
-// each item: session_token, user_id, origin, created_at, auth_method, and role_id when the session has a role
+// each item: session_token, user_id, origin, created_at, auth_method, role_id
+// role_id is always present: the session's role, or null when the session has no role
+// (servers released after 2026-10-21; earlier servers return role_id only from create)
 
 // Paginate with cursor
 $next = $client->embed->listSessions([
@@ -1198,18 +1203,24 @@ $key = $client->keys->create([
 
 **Scopes and roles.** Unknown scope names are rejected with `400 invalid_parameters`.
 
-- Scopes a JWT caller gets follow their active role (a Guest is read-only).
-- A key acts for its `bound_user_id`, else the person who created it in Settings → API keys. At every
-  call it keeps only the scopes that person currently holds, so a demoted or departed creator narrows
-  the key.
-- A new key can't carry more than the person minting it holds, nor more than the user it is bound to
-  holds, whether it is created in Settings or with `$client->keys->create()` (`403 permission_denied`,
-  reason `scope_exceeds_role`, with the refused `scopes` listed). A key created with
-  `$client->keys->create()` acts for the same person as the key that created it.
+- A JWT caller gets the scopes of their active role (a Guest is read-only).
+- A key acts for its creator **and** its bound user (`bound_user_id`). Every call keeps only the
+  scopes both of them hold now, so demoting or removing either one narrows the key.
+- A new key can't carry more than its creator and its bound user hold (`403 permission_denied`,
+  reason `scope_exceeds_role`, with the refused `scopes` listed).
+- Only an Admin may bind a key to someone else (`403 permission_denied`, permission `org.admin`,
+  reason `role_denied`); binding a key to yourself is fine.
+- A key created with `$client->keys->create()` acts for the same creator and bound user as the key
+  that created it, and keeps that key's workspace, sources (equal or narrower), access policies and
+  IP allow-list (equal or narrower).
+- `bound_user_id` can't be a pseudo id.
 - `embed:role:assign` lets `embed->createSession()` / `getSession()` **grant** a custom role the user
   doesn't hold yet. Holding it requires the `api.write_scopes.use`, `admin.embed.manage` and
   `admin.people.manage` permissions.
-- Pass `bound_user_id` when a key should follow one specific person's role instead.
+- Pass `bound_user_id` when a key should also be limited to one specific person's role.
+
+These rules apply on servers released after 2026-10-21; earlier servers cap only keys created in
+Settings.
 
 #### `$client->keys->list($params)`
 
@@ -1574,7 +1585,7 @@ $client->getSession(array $params): GetSessionResult
 | `access` | `array\|null` | No | Policy IDs or inline sources + filters |
 | `origin` | `string\|null` | No | Allowed origin for the embed iframe (CORS validation). Falls back to `default_origin` / `QUERRI_EMBED_ORIGIN` when omitted or null. Max 500 characters. |
 | `ttl` | `int` | No | Session lifetime in seconds, 900–86400 (default: `3600`). Out-of-range values throw `ValidationException` before any HTTP call. |
-| `role` | `string\|null` | No | Custom Role id or key the session runs as (max 100 characters; longer throws `ValidationException` before any HTTP call). Sent only when set. Not the same as `user.role`, the org role (`admin`/`member`) used only when creating the user. See [`createSession`](#client-embed-createsessionparams) for the rules and errors. **Decide it on your server, never from the browser's request.** |
+| `role` | `string\|null` | No | Custom Role id or key the session runs as (max 100 characters; longer throws `ValidationException` before any HTTP call). Sent only when a non-empty string. The user is created/updated and access policies applied before the session is requested, so if the role is refused those steps have still happened. Not the same as `user.role`, the org role (`admin`/`member`) used only when creating the user. See [`createSession`](#client-embed-createsessionparams) for the rules and errors. **Decide it on your server, never from the browser's request.** |
 
 ### Return Value: `GetSessionResult`
 
@@ -1584,7 +1595,7 @@ $client->getSession(array $params): GetSessionResult
 | `expiresIn` | `int` | Seconds until the token expires |
 | `userId` | `string` | Querri internal user ID |
 | `externalId` | `string\|null` | Your external ID for the user |
-| `roleId` | `string\|null` | The Custom Role the session runs as; `null` when no `role` was applied |
+| `roleId` | `string\|null` | The role the session runs as (a custom role id `role_…` or a built-in role id such as `system:creator`); `null` when no `role` was applied |
 
 `GetSessionResult` implements `JsonSerializable`, so you can pass it directly to `json_encode()`:
 
@@ -1709,14 +1720,15 @@ All `ApiException` subclasses expose:
 | `$errorCode` | `string\|null` | Error code from the API |
 | `$docUrl` | `string\|null` | Link to relevant documentation |
 | `$permission` | `string\|null` | On `permission_denied`: the permission key that was denied (e.g. `dashboards.list.view`). Read from the body, else the `X-Permission-Denied` header |
-| `$reason` | `string\|null` | On `permission_denied`: why — `role_denied`, `not_in_plan`, `flag_off`, `embed_disabled`, `dependency_unmet` or `forbidden` |
+| `$reason` | `string\|null` | On `permission_denied`: why — e.g. `role_denied`, `not_in_plan`, `flag_off`, `embed_disabled`, `dependency_unmet`, `scope_exceeds_role` or `forbidden`; the server may add more |
 
 `$requestId` comes from the `X-Request-Id` response header; quote it in support tickets.
 
 ### Error Codes
 
-`$errorCode` is one of these documented values; compare against the `Querri\Embed\Exceptions\ErrorCode`
-constants instead of string literals. New codes may appear, so keep a default branch.
+These are the codes for authentication, access, Custom Roles and embed sessions; compare against the
+`Querri\Embed\Exceptions\ErrorCode` constants instead of string literals. The API sends other codes
+too, so keep a default branch.
 
 | Constant | Code | Status | Meaning |
 |---|---|---|---|
@@ -1731,11 +1743,11 @@ constants instead of string literals. New codes may appear, so keep a default br
 | `INSUFFICIENT_SCOPE` | `insufficient_scope` | 403 | The key lacks the scope the call needs — including `embed:role:assign` to grant a role the user doesn't hold |
 | `PERMISSION_DENIED` | `permission_denied` | 403 | The caller's role does not grant the action; see `permission` and `reason` |
 | `ROLE_NOT_FOUND` | `role_not_found` | 404 | No role with that id or key |
-| `ROLE_NOT_ALLOWED` | `role_not_allowed` | 403 | Admin role, not on the embed allow-list, or the key's creator can't grant it |
+| `ROLE_NOT_ALLOWED` | `role_not_allowed` | 403 | Admin role, not on the embed allow-list, or the person the key acts for (its bound user, else its creator) doesn't hold every permission in it |
 | `ROLE_DISABLED` | `role_disabled` | 403 | The role is a draft; an admin must enable it |
 | `SEAT_CHANGE_REQUIRED` | `seat_change_required` | 403 | The role needs a creator seat; an admin must assign it in Settings |
 | `NOT_ORG_MEMBER` | `not_org_member` | 403 | The user is not a member of the organization |
-| `USER_NOT_FOUND` | `user_not_found` | 404 | No such user in the organization |
+| `USER_NOT_FOUND` | `user_not_found` | 400 / 404 | No such user: 400 on embed session creation (a `ValidationException` there), 404 on the users endpoints |
 | `ORIGIN_REQUIRED` | `origin_required` | 400 | The organization has a domain allow-list, so `origin` is required |
 | `ORIGIN_NOT_ALLOWED` | `origin_not_allowed` | 403 | The `origin` is not on the allowed domains |
 | `SESSION_NOT_FOUND` | `session_not_found` | 404 | The embed session does not exist or has expired |
@@ -1745,7 +1757,9 @@ constants instead of string literals. New codes may appear, so keep a default br
 | `MEMBERSHIP_CHECK_FAILED` | `membership_check_failed` | 500 | The membership check failed |
 
 The `reason` values are also constants: `ErrorCode::REASON_ROLE_DENIED`, `REASON_NOT_IN_PLAN`,
-`REASON_FLAG_OFF`, `REASON_EMBED_DISABLED`, `REASON_DEPENDENCY_UNMET`, `REASON_FORBIDDEN`.
+`REASON_FLAG_OFF`, `REASON_EMBED_DISABLED`, `REASON_DEPENDENCY_UNMET`, `REASON_SCOPE_EXCEEDS_ROLE`
+(creating an API key with scopes its creator or bound user lacks), `REASON_FORBIDDEN`. The server may
+add more.
 
 On the wire every `/v1` error is `{"detail": {"error": {"type", "code", "message", "doc_url"}}}`
 (plus `permission` and `reason` on `permission_denied`); the SDK unwraps it for you and keeps the raw

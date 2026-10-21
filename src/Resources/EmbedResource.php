@@ -60,7 +60,8 @@ final class EmbedResource extends BaseResource
             $body['origin'] = $origin;
         }
 
-        if ($role !== null) {
+        // Send only a non-empty role: '' means "no role", the same as unset.
+        if ($role !== null && $role !== '') {
             $body['role'] = $role;
         }
 
@@ -118,6 +119,8 @@ final class EmbedResource extends BaseResource
     /**
      * Refresh an embed session token. The new token keeps the old session's
      * role, and the response echoes it as `role_id` when the session has one.
+     * Servers released after 2026-10-21 also return `role_id` from refresh and
+     * list; earlier servers return it only from create.
      *
      * @return array{session_token: string, expires_in: int, user_id: string|null, role_id?: string}
      */
@@ -132,7 +135,8 @@ final class EmbedResource extends BaseResource
      * List active embed sessions.
      *
      * Each item is `{session_token, user_id, origin, created_at, auth_method, role_id: string|null}`;
-     * `role_id` is the role the session runs as, or null.
+     * `role_id` is the role the session runs as, or null (servers released
+     * after 2026-10-21; earlier servers return `role_id` only from create).
      *
      * @param array{limit?: int, after?: string}|null $params
      * @return array{data: array<int, array<string, mixed>>, has_more: bool, next_cursor: string|null}

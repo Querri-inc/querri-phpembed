@@ -341,6 +341,55 @@ final class ApiExceptionTest extends TestCase
         $this->assertSame('Request failed with status 403', $e->getMessage());
     }
 
+    /**
+     * When no single permission applies the server sends an error code in
+     * X-Permission-Denied; that must not be read as a permission key.
+     */
+    public function testPermissionHeaderHoldingAnErrorCodeIsIgnored(): void
+    {
+        $body = ['detail' => ['error' => [
+            'code' => 'permission_denied',
+            'reason' => 'scope_exceeds_role',
+            'scopes' => ['*'],
+        ]]];
+
+        $e = ApiException::fromResponse(403, $body, ['x-permission-denied' => ['permission_denied']]);
+
+        $this->assertNull($e->permission);
+        $this->assertSame(ErrorCode::PERMISSION_DENIED, $e->errorCode);
+        $this->assertSame(ErrorCode::REASON_SCOPE_EXCEEDS_ROLE, $e->reason);
+    }
+
+    public function testPermissionHeaderIsUsedWithNonJsonBody(): void
+    {
+        $e = ApiException::fromResponse(403, 'not json', ['x-permission-denied' => ['dashboards.list.view']]);
+        $this->assertSame('dashboards.list.view', $e->permission);
+    }
+
+    /** In-app routes send the code as a string `error` beside permission/reason. */
+    public function testParsesInAppFlatPermissionDeniedShape(): void
+    {
+        $body = ['detail' => [
+            'error' => 'permission_denied',
+            'permission' => 'org.admin',
+            'reason' => 'role_denied',
+            'layer' => 'route',
+        ]];
+
+        $e = ApiException::fromResponse(403, $body, []);
+
+        $this->assertSame(ErrorCode::PERMISSION_DENIED, $e->errorCode);
+        $this->assertSame('org.admin', $e->permission);
+        $this->assertSame(ErrorCode::REASON_ROLE_DENIED, $e->reason);
+    }
+
+    /** A legacy sentence in a string `error` is a message, not a code. */
+    public function testStringErrorSentenceIsNotAnErrorCode(): void
+    {
+        $e = ApiException::fromResponse(400, ['error' => 'String error message'], []);
+        $this->assertNull($e->errorCode);
+    }
+
     public function testPermissionHeaderAcceptsScalarValue(): void
     {
         $e = ApiException::fromResponse(403, null, ['x-permission-denied' => 'sources.list.view']);

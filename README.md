@@ -166,7 +166,7 @@ $session = $client->getSession([
     'user' => ['external_id' => 'customer-42'],
     'role' => 'analyst',   // decided by YOUR server, never taken from the browser request
 ]);
-$session->roleId;          // 'role_…' when the role was applied, else null
+$session->roleId;          // 'role_…' (or a built-in role id such as 'system:creator') when the role was applied, else null
 ```
 
 - A role the user already holds is simply selected.
@@ -179,6 +179,9 @@ $session->roleId;          // 'role_…' when the role was applied, else null
   user is first created; `role` is the Custom Role the session runs as.
 - Decide `role` on your server from your own auth. Never read it from the page's request — anyone can
   edit that.
+- `getSession()` creates or updates the user and applies access policies before it requests the
+  session, so if the role is refused those steps have still happened.
+- An empty string is treated like no `role`.
 
 ### GetSessionResult
 
@@ -240,6 +243,9 @@ $refreshed = $client->embed->refreshSession($session['session_token']); // keeps
 $client->embed->revokeSession('ses_abc123');
 $client->embed->revokeUserSessions('usr_abc123');
 ```
+
+Servers released after 2026-10-21 also return `role_id` from refresh and list; earlier servers return
+it only from create.
 
 ### All Resources
 
@@ -316,8 +322,9 @@ Every `ApiException` exposes `status`, `errorCode` (compare with the `ErrorCode`
 `type`, `docUrl`, `requestId` (from the `X-Request-Id` header), the raw `body` and `headers`, and —
 on a role-system denial (`permission_denied`) — `permission` (the permission key, also sent as the
 `X-Permission-Denied` header) and `reason` (`role_denied`, `not_in_plan`, `flag_off`,
-`embed_disabled`, `dependency_unmet` or `forbidden`). See the
-[error code table](docs/server-sdk.md#error-codes) for every documented code.
+`embed_disabled`, `dependency_unmet`, `scope_exceeds_role` or `forbidden`; the server may add more).
+See the [error code table](docs/server-sdk.md#error-codes) for the codes for authentication, access,
+Custom Roles and embed sessions; the API sends other codes too, so keep a default branch.
 
 The SDK automatically retries **429** (always) and **5xx** (idempotent methods only) with exponential backoff + jitter, up to `max_retries` attempts.
 

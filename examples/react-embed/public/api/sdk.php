@@ -9,6 +9,13 @@ declare(strict_types=1);
  * Body: { "action": "users.list", "params": { ... } }
  *
  * Single endpoint that dispatches to any PHP SDK method.
+ *
+ * WARNING: LOCAL DEVELOPMENT TOOL ONLY. NEVER DEPLOY THIS FILE.
+ * It passes browser-supplied params straight to the SDK, so the browser can
+ * choose ANY parameter -- including `role` on embed.createSession, which can
+ * grant the user a custom role -- and call every admin method with this
+ * server's API key. A real session endpoint decides `role` (and the user and
+ * access) on the server from its own auth; see querri-session.php.
  */
 
 require_once __DIR__ . '/../../../../vendor/autoload.php';
@@ -50,6 +57,8 @@ try {
         'users.removeExternalId' => $client->users->removeExternalId($params['external_id']),
 
         // ─── Embed ───────────────────────────────────────
+        // Dev-only: the browser picks every param here, including `role`. Real
+        // endpoints decide `role` server-side -- see querri-session.php.
         'embed.createSession'      => $client->embed->createSession($params),
         'embed.refreshSession'     => $client->embed->refreshSession($params['session_token']),
         'embed.listSessions'       => $client->embed->listSessions($params ?: null),

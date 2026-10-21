@@ -159,6 +159,15 @@ final class EmbedResourceTest extends MockHttpTestCase
         $this->assertSame('{"user_id":"u_1","ttl":3600}', $this->recorded[0]['body']);
     }
 
+    public function testCreateSessionOmitsRoleKeyWhenEmptyString(): void
+    {
+        $client = $this->makeQuerriClient([new MockResponse('{}', ['http_code' => 200])]);
+
+        $client->embed->createSession(['user_id' => 'u_1', 'role' => '']);
+
+        $this->assertSame('{"user_id":"u_1","ttl":3600}', $this->recorded[0]['body']);
+    }
+
     public function testCreateSessionRejectsOverlongRoleWithoutHttpCall(): void
     {
         $client = $this->makeQuerriClient([]);

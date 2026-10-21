@@ -26,21 +26,28 @@ Custom Roles support. Additive: no existing signature changes meaning.
   no role was applied). `createSession()` and `refreshSession()` document
   `role_id?: string` (present when the session runs as a role; refresh keeps
   it and echoes it), and `listSessions()` items carry `role_id` (null when
-  none).
+  none). Servers released after 2026-10-21 also return `role_id` from
+  refresh and list; earlier servers return it only from create. An empty
+  `role` string is treated as unset.
 - **`ApiException::$permission` and `::$reason`.** A role-system denial
   (`403 permission_denied`) names the denied permission key (from the body,
   else the `X-Permission-Denied` header) and why (`role_denied`,
   `not_in_plan`, `flag_off`, `embed_disabled`, `dependency_unmet`,
-  `forbidden`). Both are appended after `$previous` in the constructors of
+  `scope_exceeds_role`, `forbidden`; the server may add more). The header is
+  used only when it holds a permission key (contains a `.`), not an error
+  code; the in-app flat `{error: "permission_denied", …}` shape also sets
+  `errorCode`. Both are appended after `$previous` in the constructors of
   `ApiException` and `RateLimitException`, so positional subclass calls are
   unaffected.
-- **`Querri\Embed\Exceptions\ErrorCode`** — constants for every documented
-  `/v1` error code (including `ROLE_NOT_FOUND`, `ROLE_NOT_ALLOWED`,
+- **`Querri\Embed\Exceptions\ErrorCode`** — constants for the `/v1` codes
+  for authentication, access, Custom Roles and embed sessions (the API sends
+  other codes too, so keep a default branch), including `ROLE_NOT_FOUND`, `ROLE_NOT_ALLOWED`,
   `ROLE_DISABLED`, `SEAT_CHANGE_REQUIRED`, `INSUFFICIENT_SCOPE`,
-  `PERMISSION_DENIED`) and the `reason` values (`REASON_*`).
+  `PERMISSION_DENIED`, and the `reason` values (`REASON_*`, including
+  `REASON_SCOPE_EXCEEDS_ROLE`).
 - Docs: error-code table; `embed:role:assign` scope and how API-key scopes
-  now follow the key's person (`bound_user_id`, else its creator in
-  Settings); `asUser()` calls can raise `permission_denied`; session
+  follow both the key's creator and its bound user (servers released after
+  2026-10-21); `asUser()` calls can raise `permission_denied`; session
   endpoint examples return `code`, `permission` and `reason`.
 
 ### Caller risk

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Querri\Embed\Exceptions;
 
 /**
- * Documented `/v1` error codes, as found on {@see ApiException::$errorCode}.
+ * The `/v1` error codes for authentication, access, Custom Roles and embed
+ * sessions, as found on {@see ApiException::$errorCode}. The API sends other
+ * codes too, so keep a default branch.
  *
  * Use these instead of string literals when branching on a failure:
  *
@@ -55,8 +57,8 @@ final class ErrorCode
     public const ROLE_NOT_FOUND = 'role_not_found';
     /**
      * 403 — the role is the Admin role, is not on the organization's list of
-     * roles embeds may grant (Settings → Embed), or the key's creator does not
-     * hold every permission in it.
+     * roles embeds may grant (Settings → Embed), or the person the key acts for
+     * (its bound user, else its creator) doesn't hold every permission in it.
      */
     public const ROLE_NOT_ALLOWED = 'role_not_allowed';
     /** 403 — the role is a draft; an admin must enable it first. */
@@ -67,7 +69,10 @@ final class ErrorCode
     // --- Users / sessions ---
     /** 403 — the user is not a member of the organization. */
     public const NOT_ORG_MEMBER = 'not_org_member';
-    /** 404 — no user with that id. */
+    /**
+     * No user with that id: 400 on embed session creation (a ValidationException
+     * there), 404 on the users endpoints.
+     */
     public const USER_NOT_FOUND = 'user_not_found';
     /** 400 — the organization has a domain allow-list, so `origin` is required. */
     public const ORIGIN_REQUIRED = 'origin_required';
@@ -84,7 +89,7 @@ final class ErrorCode
     /** 500 — the organization membership check failed. */
     public const MEMBERSHIP_CHECK_FAILED = 'membership_check_failed';
 
-    // --- `reason` values on a PERMISSION_DENIED error ---
+    // --- `reason` values on a PERMISSION_DENIED error (the server may add more) ---
     /** The caller's role does not include the permission. */
     public const REASON_ROLE_DENIED = 'role_denied';
     /** The organization's plan does not include the feature. */
@@ -95,6 +100,11 @@ final class ErrorCode
     public const REASON_EMBED_DISABLED = 'embed_disabled';
     /** A permission this one depends on is not granted. */
     public const REASON_DEPENDENCY_UNMET = 'dependency_unmet';
+    /**
+     * Creating an API key with scopes its creator or bound user lacks; the
+     * error lists the refused `scopes`.
+     */
+    public const REASON_SCOPE_EXCEEDS_ROLE = 'scope_exceeds_role';
     /** Denied for another reason. */
     public const REASON_FORBIDDEN = 'forbidden';
 

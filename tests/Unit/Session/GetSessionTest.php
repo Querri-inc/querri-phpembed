@@ -413,6 +413,22 @@ final class GetSessionTest extends TestCase
         $this->assertNull($result->jsonSerialize()['role_id']);
     }
 
+    public function testExecuteTreatsEmptyRoleAsUnset(): void
+    {
+        $client = $this->buildClient([
+            new MockResponse('{"id":"usr_42"}', ['http_code' => 200]),
+            new MockResponse('{"session_token":"t","expires_in":3600,"user_id":"usr_42"}', ['http_code' => 200]),
+        ]);
+
+        $result = GetSession::execute($client->users, $client->policies, $client->embed, [
+            'user' => 'ext_99',
+            'role' => '',
+        ]);
+
+        $this->assertSame('{"user_id":"usr_42","ttl":3600}', $this->recorded[1]['body']);
+        $this->assertNull($result->roleId);
+    }
+
     public function testExecuteSessionRoleIsNotTheUserOrgRole(): void
     {
         // user.role is the org role used to create the user; it must not leak

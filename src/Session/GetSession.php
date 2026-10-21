@@ -91,8 +91,9 @@ final class GetSession
         }
 
         // Custom Roles: the role the session runs as. Same send-only-when-set
-        // rule as origin, so callers that never pass a role send the same body.
-        if (isset($params['role'])) {
+        // rule as origin, so callers that never pass a role send the same body;
+        // an empty string is treated as unset.
+        if (isset($params['role']) && $params['role'] !== '') {
             $sessionParams['role'] = $params['role'];
         }
 

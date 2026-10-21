@@ -10,7 +10,8 @@ namespace Querri\Embed\Exceptions;
  * Carries the full response context: status code, parsed body, headers,
  * request ID, and optional error metadata (type, code, doc_url). Role-system
  * denials (403 `permission_denied`) also carry the denied `permission` key and
- * the `reason` it was denied — see {@see ErrorCode} for the documented codes.
+ * the `reason` it was denied — see {@see ErrorCode} for the authentication,
+ * access, Custom Roles and embed session codes.
  */
 class ApiException extends QuerriException
 {
@@ -21,8 +22,9 @@ class ApiException extends QuerriException
      * @param array<string, array<int, string>|string> $headers
      * @param string|null $permission The permission key a `permission_denied` error names
      *   (body `error.permission`, else the `X-Permission-Denied` header), e.g. `dashboards.list.view`.
-     * @param string|null $reason Why it was denied: `role_denied`, `not_in_plan`, `flag_off`,
-     *   `embed_disabled`, `dependency_unmet` or `forbidden`.
+     * @param string|null $reason Why it was denied, e.g. `role_denied`, `not_in_plan`, `flag_off`,
+     *   `embed_disabled`, `dependency_unmet`, `scope_exceeds_role` or `forbidden`; the server
+     *   may add more.
      */
     public function __construct(
         string $message,
@@ -95,6 +97,17 @@ class ApiException extends QuerriException
 
             $type = is_string($source['type'] ?? null) ? $source['type'] : null;
             $errorCode = is_string($source['code'] ?? null) ? $source['code'] : null;
+            // In-app flat shape: {error: 'permission_denied', permission, reason, layer}
+            // carries the code as a string `error` rather than `code`. Only a
+            // code-shaped string counts — legacy bodies put a sentence there.
+            if (
+                $errorCode === null
+                && $error === null
+                && is_string($body['error'] ?? null)
+                && preg_match('/^[a-z][a-z0-9_]*$/', $body['error']) === 1
+            ) {
+                $errorCode = $body['error'];
+            }
             $docUrl = is_string($source['doc_url'] ?? null) ? $source['doc_url'] : null;
             $permission = is_string($source['permission'] ?? null) ? $source['permission'] : null;
             $reason = is_string($source['reason'] ?? null) ? $source['reason'] : null;
@@ -106,8 +119,16 @@ class ApiException extends QuerriException
         }
 
         // permission_denied also names the permission in a header; use it when
-        // the body is absent or unparseable (e.g. a proxy replaced it).
-        $permission ??= self::readSingleHeader($headers, 'x-permission-denied');
+        // the body is absent or unparseable (e.g. a proxy replaced it). When no
+        // single permission applies the server puts an error code there instead
+        // (`permission_denied`); permission keys always contain a dot
+        // (`dashboards.list.view`, `org.admin`) and error codes never do.
+        if ($permission === null) {
+            $header = self::readSingleHeader($headers, 'x-permission-denied');
+            if ($header !== null && str_contains($header, '.')) {
+                $permission = $header;
+            }
+        }
 
         return [
             'message' => $message,
