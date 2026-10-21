@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Querri\Embed\Tests\Unit\Resources;
 
 use Querri\Embed\Config;
+use Querri\Embed\Exceptions\ErrorCode;
+use Querri\Embed\Exceptions\NotFoundException;
+use Querri\Embed\Exceptions\PermissionException;
 use Querri\Embed\Exceptions\ValidationException;
 use Querri\Embed\Tests\Unit\MockHttpTestCase;
 use Symfony\Component\HttpClient\Response\MockResponse;
@@ -130,6 +133,124 @@ final class EmbedResourceTest extends MockHttpTestCase
         } finally {
             $this->assertCount(0, $this->recorded);
         }
+    }
+
+    public function testCreateSessionSendsRoleAndReturnsRoleId(): void
+    {
+        $client = $this->makeQuerriClient([
+            new MockResponse(
+                '{"session_token":"es_t","expires_in":3600,"user_id":"u_1","role_id":"role_analyst"}',
+                ['http_code' => 200],
+            ),
+        ]);
+
+        $session = $client->embed->createSession(['user_id' => 'u_1', 'role' => 'analyst']);
+
+        $this->assertSame('{"user_id":"u_1","ttl":3600,"role":"analyst"}', $this->recorded[0]['body']);
+        $this->assertSame('role_analyst', $session['role_id'] ?? null);
+    }
+
+    public function testCreateSessionOmitsRoleKeyWhenNull(): void
+    {
+        $client = $this->makeQuerriClient([new MockResponse('{}', ['http_code' => 200])]);
+
+        $client->embed->createSession(['user_id' => 'u_1', 'role' => null]);
+
+        $this->assertSame('{"user_id":"u_1","ttl":3600}', $this->recorded[0]['body']);
+    }
+
+    public function testCreateSessionRejectsOverlongRoleWithoutHttpCall(): void
+    {
+        $client = $this->makeQuerriClient([]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('role must be at most 100 characters, got 101.');
+        try {
+            $client->embed->createSession(['user_id' => 'u_1', 'role' => str_repeat('r', 101)]);
+        } finally {
+            $this->assertCount(0, $this->recorded);
+        }
+    }
+
+    public function testCreateSessionAcceptsRoleAtMaxLength(): void
+    {
+        $client = $this->makeQuerriClient([new MockResponse('{}', ['http_code' => 200])]);
+
+        $client->embed->createSession(['user_id' => 'u_1', 'role' => str_repeat('r', 100)]);
+
+        $this->assertCount(1, $this->recorded);
+    }
+
+    public function testCreateSessionRoleDisabledSurfacesAsPermissionException(): void
+    {
+        $client = $this->makeQuerriClient([
+            new MockResponse(
+                '{"detail":{"error":{"type":"permission_error","code":"role_disabled",'
+                . '"message":"That role is a draft; an admin must enable it first.",'
+                . '"doc_url":"https://docs.querri.com/api/errors#role_disabled"}}}',
+                ['http_code' => 403, 'response_headers' => ['Content-Type: application/json']],
+            ),
+        ]);
+
+        try {
+            $client->embed->createSession(['user_id' => 'u_1', 'role' => 'draft_role']);
+            $this->fail('expected PermissionException');
+        } catch (PermissionException $e) {
+            $this->assertSame(ErrorCode::ROLE_DISABLED, $e->errorCode);
+            $this->assertSame('That role is a draft; an admin must enable it first.', $e->getMessage());
+            $this->assertSame('https://docs.querri.com/api/errors#role_disabled', $e->docUrl);
+        }
+    }
+
+    public function testCreateSessionUnknownRoleSurfacesAsNotFoundException(): void
+    {
+        $client = $this->makeQuerriClient([
+            new MockResponse(
+                '{"detail":{"error":{"type":"not_found_error","code":"role_not_found",'
+                . '"message":"No role \'nope\' in this organization.",'
+                . '"doc_url":"https://docs.querri.com/api/errors#role_not_found"}}}',
+                ['http_code' => 404],
+            ),
+        ]);
+
+        try {
+            $client->embed->createSession(['user_id' => 'u_1', 'role' => 'nope']);
+            $this->fail('expected NotFoundException');
+        } catch (NotFoundException $e) {
+            $this->assertSame(ErrorCode::ROLE_NOT_FOUND, $e->errorCode);
+        }
+    }
+
+    public function testRefreshSessionPassesRoleIdThrough(): void
+    {
+        // Response shape of the backend once refresh echoes the session's role.
+        $client = $this->makeQuerriClient([
+            new MockResponse(
+                '{"session_token":"es_new","expires_in":3600,"user_id":"u_1","role_id":"role_analyst"}',
+                ['http_code' => 200],
+            ),
+        ]);
+
+        $refreshed = $client->embed->refreshSession('es_old');
+
+        $this->assertSame('es_new', $refreshed['session_token']);
+        $this->assertSame('role_analyst', $refreshed['role_id'] ?? null);
+    }
+
+    public function testListSessionsPassesRoleIdThrough(): void
+    {
+        $client = $this->makeQuerriClient([
+            new MockResponse(
+                '{"data":[{"session_token":"es_a","user_id":"u_1","role_id":"role_analyst"},'
+                . '{"session_token":"es_b","user_id":"u_2"}],"has_more":false,"next_cursor":null}',
+                ['http_code' => 200],
+            ),
+        ]);
+
+        $list = $client->embed->listSessions();
+
+        $this->assertSame('role_analyst', $list['data'][0]['role_id'] ?? null);
+        $this->assertArrayNotHasKey('role_id', $list['data'][1]);
     }
 
     public function testRefreshSessionPostsSessionToken(): void

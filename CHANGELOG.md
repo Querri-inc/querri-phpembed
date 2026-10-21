@@ -5,6 +5,53 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Prior to `1.0.0`, minor version bumps may contain breaking changes.
 
+## [Unreleased]
+
+## [1.1.0] — Unreleased
+
+Custom Roles support. Additive: no existing signature changes meaning.
+
+### Added
+
+- **`role` on embed sessions.** `getSession()` and `embed->createSession()`
+  accept an optional top-level `role` (a Custom Role id or key, at most 100
+  characters — `EmbedResource::MAX_ROLE_LENGTH`, checked before any HTTP
+  call like `ttl`/`origin`). It is sent only when set, so existing calls
+  send the same request body. It is distinct from `user.role`, which is
+  still the org role (`admin`/`member`) used when the user is created.
+  Decide it on your server, never from the browser's request.
+- **`GetSessionResult::$roleId`** (`?string`, appended as the last
+  constructor parameter so positional construction keeps working).
+  `jsonSerialize()`/`toArray()` now always include `role_id` (`null` when
+  no role was applied). `createSession()` and `refreshSession()` document
+  `role_id?: string` (present when the session runs as a role; refresh keeps
+  it and echoes it), and `listSessions()` items carry `role_id` (null when
+  none).
+- **`ApiException::$permission` and `::$reason`.** A role-system denial
+  (`403 permission_denied`) names the denied permission key (from the body,
+  else the `X-Permission-Denied` header) and why (`role_denied`,
+  `not_in_plan`, `flag_off`, `embed_disabled`, `dependency_unmet`,
+  `forbidden`). Both are appended after `$previous` in the constructors of
+  `ApiException` and `RateLimitException`, so positional subclass calls are
+  unaffected.
+- **`Querri\Embed\Exceptions\ErrorCode`** — constants for every documented
+  `/v1` error code (including `ROLE_NOT_FOUND`, `ROLE_NOT_ALLOWED`,
+  `ROLE_DISABLED`, `SEAT_CHANGE_REQUIRED`, `INSUFFICIENT_SCOPE`,
+  `PERMISSION_DENIED`) and the `reason` values (`REASON_*`).
+- Docs: error-code table; `embed:role:assign` scope and how API-key scopes
+  now follow the key's person (`bound_user_id`, else its creator in
+  Settings); `asUser()` calls can raise `permission_denied`; session
+  endpoint examples return `code`, `permission` and `reason`.
+
+### Caller risk
+
+- PHP arrays have no excess-key check, so a caller that already passes a
+  stray top-level `'role' => 'member'` to `getSession()` (meaning the org
+  role, which belongs under `'user'`) was silently ignored before and is now
+  sent: `'member'` fails with `404 role_not_found` (unless the organization
+  has a custom role keyed `member`), `'admin'` with `403 role_not_allowed`.
+  Move it to `'user' => ['role' => …]`.
+
 ## [1.0.1] — 2026-09-28
 
 No code change: `Config::VERSION` (and so the `querri-php/…` user agent) is the

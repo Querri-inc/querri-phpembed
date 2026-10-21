@@ -93,7 +93,10 @@ final class QuerriClient
 
     /**
      * Create a user-scoped client from a session result.
-     * Uses the internal API with embed session auth — resources are FGA-filtered.
+     * Uses the public /api/v1 API with embed session auth — resources are
+     * FGA-filtered, and every call is subject to the session's role: an action
+     * the role does not grant throws PermissionException with errorCode
+     * `permission_denied` and the `permission` / `reason` it was denied for.
      *
      * @param HttpClientInterface|null $httpClient Optional transport for testing/custom mocks
      */
@@ -135,11 +138,18 @@ final class QuerriClient
      * 2. Access policy — auto-creates or reuses a deterministically-named policy
      * 3. Session creation — creates an embed session token
      *
+     * `role` (Custom Roles) is the role id or key the session runs as; the
+     * result's `roleId` says which role was applied (null when none). It is
+     * not `user.role`, which is the org role (`admin`/`member`) used only when
+     * the user is first created. Decide `role` on your server from your own
+     * auth — never read it from the browser's request.
+     *
      * @param array{
      *   user: string|array{external_id: string, email?: string, first_name?: string, last_name?: string, role?: string},
      *   access?: array{policy_ids: string[]}|array{sources: string[], filters: array<string, string|string[]>}|null,
      *   origin?: string|null,
      *   ttl?: int,
+     *   role?: string|null,
      * } $params
      */
     public function getSession(array $params): GetSessionResult

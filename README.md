@@ -156,6 +156,30 @@ $session = $client->getSession([
 ]);
 ```
 
+### Running the session as a custom role
+
+Pass `role` (a role id or key, at most 100 characters) to run the embed session as one of your
+organization's custom roles:
+
+```php
+$session = $client->getSession([
+    'user' => ['external_id' => 'customer-42'],
+    'role' => 'analyst',   // decided by YOUR server, never taken from the browser request
+]);
+$session->roleId;          // 'role_…' when the role was applied, else null
+```
+
+- A role the user already holds is simply selected.
+- A role they don't hold is granted only when the API key has the `embed:role:assign` scope and the
+  role is on the organization's embed allow-list (Settings → Embed). Otherwise the call throws
+  `PermissionException` with `errorCode` `insufficient_scope` or `role_not_allowed`.
+- An unknown role throws `NotFoundException` (`role_not_found`); a draft role `role_disabled`; a role
+  that needs a creator seat `seat_change_required`.
+- **`role` is not `user.role`.** `user.role` is the org role (`admin`/`member`) used only when the
+  user is first created; `role` is the Custom Role the session runs as.
+- Decide `role` on your server from your own auth. Never read it from the page's request — anyone can
+  edit that.
+
 ### GetSessionResult
 
 ```php
@@ -163,10 +187,11 @@ $session->sessionToken;  // string — opaque `es_…` session token for the emb
 $session->expiresIn;     // int — seconds until expiry
 $session->userId;        // string — Querri user ID
 $session->externalId;    // string|null — your external ID
+$session->roleId;        // string|null — the custom role the session runs as (null when none)
 
 // JSON-serializable for API responses
 echo json_encode($session);
-// {"session_token":"...","expires_in":3600,"user_id":"...","external_id":"..."}
+// {"session_token":"...","expires_in":3600,"user_id":"...","external_id":"...","role_id":null}
 ```
 
 ## Direct Resource Usage
@@ -208,9 +233,10 @@ $client->policies->removeUser($policy['id'], 'usr_abc123');
 $session = $client->embed->createSession([
     'user_id' => 'usr_abc123',
     'ttl'     => 3600,
+    'role'    => 'analyst',   // optional; response has 'role_id' only when a role was applied
 ]);
 
-$refreshed = $client->embed->refreshSession($session['session_token']);
+$refreshed = $client->embed->refreshSession($session['session_token']); // keeps the role; echoes 'role_id'
 $client->embed->revokeSession('ses_abc123');
 $client->embed->revokeUserSessions('usr_abc123');
 ```
@@ -244,9 +270,9 @@ QuerriException
 ├── ConnectionException      — network failures (auto-retried)
 │   └── TimeoutException     — request timeout exceeded
 └── ApiException             — HTTP error responses
-    ├── ValidationException  — 400/422 (also thrown client-side for invalid ttl/origin)
+    ├── ValidationException  — 400/422 (also thrown client-side for invalid ttl/origin/role)
     ├── AuthenticationException — 401
-    ├── PermissionException  — 403
+    ├── PermissionException  — 403 (scope, role or permission denied)
     ├── NotFoundException    — 404
     ├── ConflictException    — 409
     ├── RateLimitException   — 429 (auto-retried)
@@ -256,6 +282,8 @@ QuerriException
 ```php
 use Querri\Embed\Exceptions\ApiException;
 use Querri\Embed\Exceptions\AuthenticationException;
+use Querri\Embed\Exceptions\ErrorCode;
+use Querri\Embed\Exceptions\PermissionException;
 use Querri\Embed\Exceptions\RateLimitException;
 use Querri\Embed\Exceptions\ConfigException;
 
@@ -264,6 +292,13 @@ try {
 } catch (AuthenticationException $e) {
     // 401 — invalid API key
     echo "Auth failed: {$e->getMessage()}";
+} catch (PermissionException $e) {
+    // 403 — branch on the code, not the message
+    match ($e->errorCode) {
+        ErrorCode::PERMISSION_DENIED => error_log("Denied {$e->permission} ({$e->reason})"),
+        ErrorCode::ROLE_DISABLED, ErrorCode::ROLE_NOT_ALLOWED => error_log("Role refused: {$e->getMessage()}"),
+        default => error_log("Forbidden: {$e->getMessage()}"),
+    };
 } catch (RateLimitException $e) {
     // 429 — rate limited (auto-retried up to maxRetries)
     echo "Rate limited, retry after: {$e->retryAfter}s";
@@ -276,6 +311,13 @@ try {
     echo $e->getMessage();
 }
 ```
+
+Every `ApiException` exposes `status`, `errorCode` (compare with the `ErrorCode` constants),
+`type`, `docUrl`, `requestId` (from the `X-Request-Id` header), the raw `body` and `headers`, and —
+on a role-system denial (`permission_denied`) — `permission` (the permission key, also sent as the
+`X-Permission-Denied` header) and `reason` (`role_denied`, `not_in_plan`, `flag_off`,
+`embed_disabled`, `dependency_unmet` or `forbidden`). See the
+[error code table](docs/server-sdk.md#error-codes) for every documented code.
 
 The SDK automatically retries **429** (always) and **5xx** (idempotent methods only) with exponential backoff + jitter, up to `max_retries` attempts.
 

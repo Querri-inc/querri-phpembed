@@ -14,6 +14,7 @@ final class EmbedResource extends BaseResource
     public const MIN_TTL = 900;
     public const MAX_TTL = 86400;
     public const MAX_ORIGIN_LENGTH = 500;
+    public const MAX_ROLE_LENGTH = 100;
 
     /**
      * Create an embed session token.
@@ -21,11 +22,23 @@ final class EmbedResource extends BaseResource
      * When no origin is passed, the config's default origin (constructor
      * option `default_origin` / env `QUERRI_EMBED_ORIGIN`) is used instead.
      *
-     * @param array{user_id: string, origin?: string|null, ttl?: int} $params
-     *   ttl: seconds, 900–86400 (default 3600)
-     * @return array{session_token: string, expires_in: int, user_id: string|null}
+     * `role` (Custom Roles) is the role id or key the session runs as. It is
+     * a different thing from a user's org role (`admin`/`member`, the `role`
+     * field of UsersResource::getOrCreate()). A role the user already holds is
+     * selected; a role they do not hold is granted only when the key has the
+     * `embed:role:assign` scope and the role is on the organization's embed
+     * allow-list. The response carries `role_id` only when a role was applied.
+     * Decide `role` on your server from your own auth — never take it from the
+     * browser's request.
      *
-     * @throws ValidationException when ttl or origin fails client-side validation
+     * @param array{user_id: string, origin?: string|null, ttl?: int, role?: string|null} $params
+     *   ttl: seconds, 900–86400 (default 3600); role: at most 100 characters
+     * @return array{session_token: string, expires_in: int, user_id: string|null, role_id?: string}
+     *
+     * @throws ValidationException when ttl, origin or role fails client-side validation
+     * @throws \Querri\Embed\Exceptions\NotFoundException `role_not_found` for an unknown role
+     * @throws \Querri\Embed\Exceptions\PermissionException `role_not_allowed`, `role_disabled`,
+     *   `insufficient_scope` or `seat_change_required` when the role cannot be applied
      */
     public function createSession(array $params): array
     {
@@ -35,6 +48,9 @@ final class EmbedResource extends BaseResource
         $origin = $params['origin'] ?? $this->client->config->defaultOrigin;
         self::assertValidOrigin($origin);
 
+        $role = $params['role'] ?? null;
+        self::assertValidRole($role);
+
         $body = [
             'user_id' => $params['user_id'],
             'ttl' => $ttl,
@@ -42,6 +58,10 @@ final class EmbedResource extends BaseResource
 
         if ($origin !== null) {
             $body['origin'] = $origin;
+        }
+
+        if ($role !== null) {
+            $body['role'] = $role;
         }
 
         return $this->post('/embed/sessions', $body);
@@ -80,9 +100,26 @@ final class EmbedResource extends BaseResource
     }
 
     /**
-     * Refresh an embed session token.
+     * Client-side guard: reject a role reference longer than the server accepts.
      *
-     * @return array<string, mixed>
+     * @throws ValidationException
+     */
+    public static function assertValidRole(?string $role): void
+    {
+        if ($role !== null && strlen($role) > self::MAX_ROLE_LENGTH) {
+            throw new ValidationException(
+                'role must be at most ' . self::MAX_ROLE_LENGTH
+                . ' characters, got ' . strlen($role) . '.',
+                status: 400,
+            );
+        }
+    }
+
+    /**
+     * Refresh an embed session token. The new token keeps the old session's
+     * role, and the response echoes it as `role_id` when the session has one.
+     *
+     * @return array{session_token: string, expires_in: int, user_id: string|null, role_id?: string}
      */
     public function refreshSession(string $sessionToken): array
     {
@@ -93,6 +130,9 @@ final class EmbedResource extends BaseResource
 
     /**
      * List active embed sessions.
+     *
+     * Each item is `{session_token, user_id, origin, created_at, auth_method, role_id: string|null}`;
+     * `role_id` is the role the session runs as, or null.
      *
      * @param array{limit?: int, after?: string}|null $params
      * @return array{data: array<int, array<string, mixed>>, has_more: bool, next_cursor: string|null}

@@ -6,6 +6,8 @@ namespace Querri\Embed\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use Querri\Embed\Config;
+use Querri\Embed\Exceptions\ErrorCode;
+use Querri\Embed\Exceptions\PermissionException;
 use Querri\Embed\Resources\ChatsResource;
 use Querri\Embed\Resources\DataResource;
 use Querri\Embed\Resources\ProjectsResource;
@@ -176,5 +178,49 @@ final class UserQuerriClientTest extends MockHttpTestCase
         // the user client then re-appends /api/v1 without doubling it.
         $this->assertStringStartsWith('https://custom.example.com/api/v1/', $this->recorded[0]['url']);
         $this->assertStringNotContainsString('/api/v1/api', $this->recorded[0]['url']);
+    }
+
+    public function testRoleDeniedCallSurfacesPermissionAndReasonThroughTransport(): void
+    {
+        // Verbatim live /v1 body + header: an es_ session whose role lacks the permission.
+        $raw = '{"detail":{"error":{"type":"permission_error","code":"permission_denied",'
+            . '"message":"This action needs the dashboards.list.view permission.",'
+            . '"permission":"dashboards.list.view","reason":"role_denied",'
+            . '"doc_url":"https://docs.querri.com/api/errors#permission_denied"}}}';
+        $client = $this->makeInjectedUserClient(new MockResponse($raw, [
+            'http_code' => 403,
+            'response_headers' => [
+                'Content-Type: application/json',
+                'X-Permission-Denied: dashboards.list.view',
+                'X-Request-Id: req_perm_1',
+            ],
+        ]));
+
+        try {
+            $client->dashboards->list();
+            $this->fail('expected PermissionException');
+        } catch (PermissionException $e) {
+            $this->assertSame(ErrorCode::PERMISSION_DENIED, $e->errorCode);
+            $this->assertSame('dashboards.list.view', $e->permission);
+            $this->assertSame(ErrorCode::REASON_ROLE_DENIED, $e->reason);
+            $this->assertSame('req_perm_1', $e->requestId);
+        }
+    }
+
+    public function testPermissionHeaderAloneReachesExceptionThroughTransport(): void
+    {
+        // Non-JSON body (e.g. replaced by a proxy) — the header still names the permission.
+        $client = $this->makeInjectedUserClient(new MockResponse('Forbidden', [
+            'http_code' => 403,
+            'response_headers' => ['X-Permission-Denied: projects.list.view'],
+        ]));
+
+        try {
+            $client->projects->list();
+            $this->fail('expected PermissionException');
+        } catch (PermissionException $e) {
+            $this->assertSame('projects.list.view', $e->permission);
+            $this->assertNull($e->errorCode);
+        }
     }
 }

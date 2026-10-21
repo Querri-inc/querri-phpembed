@@ -19,6 +19,11 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * Resources are FGA-filtered — only data the session user can access is
  * returned, and dashboards are read-only for embed sessions.
  *
+ * Calls are also subject to the session's role (Custom Roles): an action the
+ * role does not grant throws PermissionException with errorCode
+ * `permission_denied`, plus `permission` (e.g. `dashboards.list.view`) and
+ * `reason` (e.g. `role_denied`).
+ *
  * Create via QuerriClient::asUser($session).
  *
  * @property-read ProjectsResource $projects         Projects — list (FGA-filtered), retrieve, run, steps.

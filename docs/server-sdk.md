@@ -35,7 +35,7 @@ try {
     $client = new QuerriClient();  // reads QUERRI_API_KEY from env
 
     // In production, derive user identity from YOUR auth system.
-    // Never read user/access from the request body — a malicious client
+    // Never read user/access/role from the request body — a malicious client
     // can impersonate any user or escalate access.
     $authUser = getAuthenticatedUser();  // your auth logic
 
@@ -52,12 +52,19 @@ try {
         // origin makes the SDK use default_origin / QUERRI_EMBED_ORIGIN.
         'origin' => ($_SERVER['HTTP_ORIGIN'] ?? '') ?: null,
         'ttl' => 3600,
+        // Optional Custom Role, decided from YOUR auth — never from the request:
+        // 'role' => $authUser->isAnalyst ? 'analyst' : null,
     ]);
 
     echo json_encode($session);
 } catch (ApiException $e) {
     http_response_code($e->status >= 400 ? $e->status : 500);
-    echo json_encode(['error' => $e->getMessage()]);
+    echo json_encode([
+        'error'      => $e->getMessage(),
+        'code'       => $e->errorCode,   // e.g. role_disabled, permission_denied
+        'permission' => $e->permission,  // set on permission_denied
+        'reason'     => $e->reason,
+    ]);
 } catch (QuerriException $e) {
     http_response_code(500);
     echo json_encode(['error' => $e->getMessage()]);
@@ -362,9 +369,28 @@ $session = $client->embed->createSession([
     'user_id' => 'user_abc123',
     'origin' => 'https://myapp.com',  // falls back to default_origin / QUERRI_EMBED_ORIGIN when omitted
     'ttl' => 7200,                    // 900–86400 seconds; out-of-range throws ValidationException locally
+    'role' => 'analyst',              // optional Custom Role id or key (max 100 chars)
 ]);
-// ['session_token' => '...', 'expires_in' => 7200, 'user_id' => 'user_abc123']
+// ['session_token' => '...', 'expires_in' => 7200, 'user_id' => 'user_abc123', 'role_id' => 'role_…']
 ```
+
+`role` runs the session as one of the organization's custom roles. It is **not** the `role` you pass
+to `users->getOrCreate()` (that is the org role, `admin`/`member`). The response carries `role_id`
+only when a role was applied. Rules, checked in this order:
+
+| Situation | Result |
+|---|---|
+| No role with that id/key | `NotFoundException`, `role_not_found` (404) |
+| The Admin role | `PermissionException`, `role_not_allowed` |
+| A draft role | `PermissionException`, `role_disabled` |
+| A role the user already holds | Selected — no extra scope needed |
+| Key lacks `embed:role:assign` | `PermissionException`, `insufficient_scope` |
+| Role not on the embed allow-list (Settings → Embed), or the key's creator lacks one of its permissions | `PermissionException`, `role_not_allowed` |
+| Role would need a creator seat | `PermissionException`, `seat_change_required` |
+| Otherwise | Granted to the user (audited as `role.assign`) and selected |
+
+> **Security:** decide `role` on your server from your own auth. Never read it from the browser's
+> request — the embed's `sessionEndpoint` mode POSTs with no body on purpose.
 
 #### `$client->embed->refreshSession($sessionToken)`
 
@@ -376,7 +402,10 @@ refreshSession(string $sessionToken): array
 
 ```php
 $refreshed = $client->embed->refreshSession('sess_token_...');
+// ['session_token' => '...', 'expires_in' => 3600, 'user_id' => '...', 'role_id' => 'role_…']
 ```
+
+The new token keeps the old session's role; `role_id` is present when the session has one.
 
 #### `$client->embed->listSessions($params)`
 
@@ -389,6 +418,7 @@ listSessions(?array $params = null): array
 ```php
 $sessions = $client->embed->listSessions(['limit' => 50]);
 // ['data' => [...], 'has_more' => true, 'next_cursor' => 'cur_...']
+// each item: session_token, user_id, origin, created_at, auth_method, and role_id when the session has a role
 
 // Paginate with cursor
 $next = $client->embed->listSessions([
@@ -1162,8 +1192,23 @@ $key = $client->keys->create([
     'name' => 'Production Key',
     'scopes' => ['data:read', 'data:write'],
     'expires_in_days' => 90,
+    'bound_user_id' => 'user_abc123',  // recommended: the key follows this person's role
 ]);
 ```
+
+**Scopes and roles.** Unknown scope names are rejected with `400 invalid_parameters`.
+
+- Scopes a JWT caller gets follow their active role (a Guest is read-only).
+- A key acts for its `bound_user_id`, else the person who created it in Settings → API keys. At every
+  call it keeps only the scopes that person currently holds, so a demoted or departed creator narrows
+  the key.
+- Settings refuses to mint a key beyond its creator's scopes (`403 permission_denied`, reason
+  `scope_exceeds_role`).
+- `embed:role:assign` lets `embed->createSession()` / `getSession()` **grant** a custom role the user
+  doesn't hold yet. Holding it requires the `api.write_scopes.use`, `admin.embed.manage` and
+  `admin.people.manage` permissions.
+- Bind keys you mint through the SDK to a user with `bound_user_id` when they should follow that
+  person's role.
 
 #### `$client->keys->list($params)`
 
@@ -1410,6 +1455,21 @@ $dashboards = $userClient->dashboards->list();   // only dashboards Alice can ac
 
 This is different from the admin `QuerriClient`, which authenticates with an API key (plus `X-Tenant-ID`) and returns all resources in the organization.
 
+Calls made with the `es_` session are also subject to the session's role (Custom Roles). An action the role does not grant throws `PermissionException` with `errorCode` `permission_denied`, `permission` set to the permission key (e.g. `dashboards.list.view`) and `reason` (e.g. `role_denied`):
+
+```php
+use Querri\Embed\Exceptions\ErrorCode;
+use Querri\Embed\Exceptions\PermissionException;
+
+try {
+    $dashboards = $userClient->dashboards->list();
+} catch (PermissionException $e) {
+    if ($e->errorCode === ErrorCode::PERMISSION_DENIED) {
+        error_log("Role can't {$e->permission}: {$e->reason}");
+    }
+}
+```
+
 ### Available Resources
 
 | Resource | Example | Description |
@@ -1491,12 +1551,14 @@ $session = $client->getSession([
     ],
     'ttl' => 3600,
     'origin' => 'https://myapp.com',
+    'role' => 'analyst',   // optional Custom Role
 ]);
 
 $session->sessionToken;  // string — opaque `es_…` session token for the embed
 $session->expiresIn;     // int — seconds until expiry
 $session->userId;        // string — Querri user ID
 $session->externalId;    // string|null — your external ID
+$session->roleId;        // string|null — the role the session runs as
 ```
 
 ### Parameters
@@ -1511,6 +1573,7 @@ $client->getSession(array $params): GetSessionResult
 | `access` | `array\|null` | No | Policy IDs or inline sources + filters |
 | `origin` | `string\|null` | No | Allowed origin for the embed iframe (CORS validation). Falls back to `default_origin` / `QUERRI_EMBED_ORIGIN` when omitted or null. Max 500 characters. |
 | `ttl` | `int` | No | Session lifetime in seconds, 900–86400 (default: `3600`). Out-of-range values throw `ValidationException` before any HTTP call. |
+| `role` | `string\|null` | No | Custom Role id or key the session runs as (max 100 characters; longer throws `ValidationException` before any HTTP call). Sent only when set. Not the same as `user.role`, the org role (`admin`/`member`) used only when creating the user. See [`createSession`](#client-embed-createsessionparams) for the rules and errors. **Decide it on your server, never from the browser's request.** |
 
 ### Return Value: `GetSessionResult`
 
@@ -1520,13 +1583,14 @@ $client->getSession(array $params): GetSessionResult
 | `expiresIn` | `int` | Seconds until the token expires |
 | `userId` | `string` | Querri internal user ID |
 | `externalId` | `string\|null` | Your external ID for the user |
+| `roleId` | `string\|null` | The Custom Role the session runs as; `null` when no `role` was applied |
 
 `GetSessionResult` implements `JsonSerializable`, so you can pass it directly to `json_encode()`:
 
 ```php
 header('Content-Type: application/json');
 echo json_encode($session);
-// {"session_token":"...","expires_in":3600,"user_id":"...","external_id":"..."}
+// {"session_token":"...","expires_in":3600,"user_id":"...","external_id":"...","role_id":null}
 ```
 
 ### User Resolution
@@ -1620,9 +1684,9 @@ QuerriException (extends RuntimeException)
 ├── ConnectionException      — Network-level failures
 │   └── TimeoutException     — Request timed out
 └── ApiException             — HTTP error response from API
-    ├── ValidationException  — 400 Bad Request
+    ├── ValidationException  — 400 Bad Request / 422 Unprocessable Entity
     ├── AuthenticationException — 401 Unauthorized
-    ├── PermissionException  — 403 Forbidden
+    ├── PermissionException  — 403 Forbidden (scope, role or permission denied)
     ├── NotFoundException    — 404 Not Found
     ├── ConflictException    — 409 Conflict
     ├── RateLimitException   — 429 Too Many Requests
@@ -1643,13 +1707,57 @@ All `ApiException` subclasses expose:
 | `$type` | `string\|null` | Error type from the API |
 | `$errorCode` | `string\|null` | Error code from the API |
 | `$docUrl` | `string\|null` | Link to relevant documentation |
+| `$permission` | `string\|null` | On `permission_denied`: the permission key that was denied (e.g. `dashboards.list.view`). Read from the body, else the `X-Permission-Denied` header |
+| `$reason` | `string\|null` | On `permission_denied`: why — `role_denied`, `not_in_plan`, `flag_off`, `embed_disabled`, `dependency_unmet` or `forbidden` |
+
+`$requestId` comes from the `X-Request-Id` response header; quote it in support tickets.
+
+### Error Codes
+
+`$errorCode` is one of these documented values; compare against the `Querri\Embed\Exceptions\ErrorCode`
+constants instead of string literals. New codes may appear, so keep a default branch.
+
+| Constant | Code | Status | Meaning |
+|---|---|---|---|
+| `MISSING_API_KEY` | `missing_api_key` | 401 | No `Bearer qk_…` key or JWT was sent |
+| `INVALID_API_KEY` | `invalid_api_key` | 401 | The key is invalid, expired, or revoked |
+| `MISSING_TENANT_ID` | `missing_tenant_id` | 400 | No `X-Tenant-ID` header (set `org_id` / `QUERRI_ORG_ID`) |
+| `INVALID_JWT` | `invalid_jwt` | 401 | The JWT is invalid or expired |
+| `INVALID_EMBED_SESSION` | `invalid_embed_session` | 401 | The `es_` session is invalid, expired, or revoked |
+| `IP_NOT_ALLOWED` | `ip_not_allowed` | 403 | The caller's IP is not on the key's allow-list |
+| `ORG_SCHEDULED_FOR_DELETION` | `org_scheduled_for_deletion` | 403 | The organization is scheduled for deletion |
+| `RATE_LIMIT_EXCEEDED` | `rate_limit_exceeded` | 429 | Too many requests (auto-retried; see `retryAfter`) |
+| `INSUFFICIENT_SCOPE` | `insufficient_scope` | 403 | The key lacks the scope the call needs — including `embed:role:assign` to grant a role the user doesn't hold |
+| `PERMISSION_DENIED` | `permission_denied` | 403 | The caller's role does not grant the action; see `permission` and `reason` |
+| `ROLE_NOT_FOUND` | `role_not_found` | 404 | No role with that id or key |
+| `ROLE_NOT_ALLOWED` | `role_not_allowed` | 403 | Admin role, not on the embed allow-list, or the key's creator can't grant it |
+| `ROLE_DISABLED` | `role_disabled` | 403 | The role is a draft; an admin must enable it |
+| `SEAT_CHANGE_REQUIRED` | `seat_change_required` | 403 | The role needs a creator seat; an admin must assign it in Settings |
+| `NOT_ORG_MEMBER` | `not_org_member` | 403 | The user is not a member of the organization |
+| `USER_NOT_FOUND` | `user_not_found` | 404 | No such user in the organization |
+| `ORIGIN_REQUIRED` | `origin_required` | 400 | The organization has a domain allow-list, so `origin` is required |
+| `ORIGIN_NOT_ALLOWED` | `origin_not_allowed` | 403 | The `origin` is not on the allowed domains |
+| `SESSION_NOT_FOUND` | `session_not_found` | 404 | The embed session does not exist or has expired |
+| `ORG_MISMATCH` | `org_mismatch` | 403 | The embed session belongs to another organization |
+| `SESSION_CREATION_FAILED` | `session_creation_failed` | 500 | The session could not be created |
+| `REFRESH_FAILED` | `refresh_failed` | 500 | The session could not be refreshed |
+| `MEMBERSHIP_CHECK_FAILED` | `membership_check_failed` | 500 | The membership check failed |
+
+The `reason` values are also constants: `ErrorCode::REASON_ROLE_DENIED`, `REASON_NOT_IN_PLAN`,
+`REASON_FLAG_OFF`, `REASON_EMBED_DISABLED`, `REASON_DEPENDENCY_UNMET`, `REASON_FORBIDDEN`.
+
+On the wire every `/v1` error is `{"detail": {"error": {"type", "code", "message", "doc_url"}}}`
+(plus `permission` and `reason` on `permission_denied`); the SDK unwraps it for you and keeps the raw
+body in `$body`.
 
 ### Common Patterns
 
 ```php
 use Querri\Embed\Exceptions\ApiException;
 use Querri\Embed\Exceptions\AuthenticationException;
+use Querri\Embed\Exceptions\ErrorCode;
 use Querri\Embed\Exceptions\NotFoundException;
+use Querri\Embed\Exceptions\PermissionException;
 use Querri\Embed\Exceptions\RateLimitException;
 use Querri\Embed\Exceptions\ValidationException;
 use Querri\Embed\Exceptions\ConfigException;
@@ -1661,6 +1769,17 @@ try {
     echo "User not found";
 } catch (AuthenticationException $e) {
     echo "Invalid API key";
+} catch (PermissionException $e) {
+    switch ($e->errorCode) {
+        case ErrorCode::PERMISSION_DENIED:
+            echo "Your role can't do this: {$e->permission} ({$e->reason})";
+            break;
+        case ErrorCode::INSUFFICIENT_SCOPE:
+            echo "The API key is missing a scope: {$e->getMessage()}";
+            break;
+        default:
+            echo "Forbidden ({$e->errorCode}): {$e->getMessage()}";
+    }
 } catch (RateLimitException $e) {
     echo "Rate limited. Retry after {$e->retryAfter} seconds";
 } catch (ValidationException $e) {
@@ -1772,7 +1891,12 @@ try {
     echo json_encode($session);
 } catch (ApiException $e) {
     http_response_code($e->status >= 400 ? $e->status : 500);
-    echo json_encode(['error' => $e->getMessage(), 'code' => $e->errorCode]);
+    echo json_encode([
+        'error'      => $e->getMessage(),
+        'code'       => $e->errorCode,   // e.g. role_disabled, permission_denied
+        'permission' => $e->permission,  // set on permission_denied
+        'reason'     => $e->reason,
+    ]);
 } catch (QuerriException $e) {
     http_response_code(500);
     echo json_encode(['error' => $e->getMessage()]);
@@ -1864,12 +1988,19 @@ Route::post('/querri-session', function (Request $request) {
             ],
             'origin' => $request->header('Origin') ?: null,
             'ttl' => 3600,
+            // Optional Custom Role — decide it from $user, never from $request:
+            // 'role' => $user->querri_role,
         ]);
 
         return response()->json($session);
     } catch (ApiException $e) {
         return response()->json(
-            ['error' => $e->getMessage()],
+            [
+                'error' => $e->getMessage(),
+                'code' => $e->errorCode,
+                'permission' => $e->permission,
+                'reason' => $e->reason,
+            ],
             $e->status >= 400 ? $e->status : 500,
         );
     } catch (QuerriException $e) {
@@ -1974,12 +2105,19 @@ class QuerriSessionController extends AbstractController
                     'filters' => ['tenant_id' => $user->getTenantId()],
                 ],
                 'origin' => $request->headers->get('Origin') ?: null,
+                // Optional Custom Role — decide it from $user, never from $request:
+                // 'role' => $user->getQuerriRole(),
             ]);
 
             return $this->json($session);
         } catch (ApiException $e) {
             return $this->json(
-                ['error' => $e->getMessage()],
+                [
+                    'error' => $e->getMessage(),
+                    'code' => $e->errorCode,
+                    'permission' => $e->permission,
+                    'reason' => $e->reason,
+                ],
                 $e->status >= 400 ? $e->status : 500,
             );
         } catch (QuerriException $e) {

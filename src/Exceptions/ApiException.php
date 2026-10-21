@@ -8,12 +8,21 @@ namespace Querri\Embed\Exceptions;
  * Thrown when the Querri API returns an HTTP error response (status >= 400).
  *
  * Carries the full response context: status code, parsed body, headers,
- * request ID, and optional error metadata (type, code, doc_url).
+ * request ID, and optional error metadata (type, code, doc_url). Role-system
+ * denials (403 `permission_denied`) also carry the denied `permission` key and
+ * the `reason` it was denied — see {@see ErrorCode} for the documented codes.
  */
 class ApiException extends QuerriException
 {
     /**
+     * `$permission` and `$reason` come after `$previous` so existing positional
+     * callers (including subclasses) keep working.
+     *
      * @param array<string, array<int, string>|string> $headers
+     * @param string|null $permission The permission key a `permission_denied` error names
+     *   (body `error.permission`, else the `X-Permission-Denied` header), e.g. `dashboards.list.view`.
+     * @param string|null $reason Why it was denied: `role_denied`, `not_in_plan`, `flag_off`,
+     *   `embed_disabled`, `dependency_unmet` or `forbidden`.
      */
     public function __construct(
         string $message,
@@ -25,6 +34,8 @@ class ApiException extends QuerriException
         public readonly ?string $errorCode = null,
         public readonly ?string $docUrl = null,
         ?\Throwable $previous = null,
+        public readonly ?string $permission = null,
+        public readonly ?string $reason = null,
     ) {
         parent::__construct($message, $status, $previous);
     }
@@ -51,6 +62,8 @@ class ApiException extends QuerriException
             type: $meta['type'],
             errorCode: $meta['errorCode'],
             docUrl: $meta['docUrl'],
+            permission: $meta['permission'],
+            reason: $meta['reason'],
         );
     }
 
@@ -62,7 +75,7 @@ class ApiException extends QuerriException
      * so the body-parsing block lives in exactly one place.
      *
      * @param array<string, array<int, string>|string> $headers
-     * @return array{message: string, requestId: ?string, type: ?string, errorCode: ?string, docUrl: ?string}
+     * @return array{message: string, requestId: ?string, type: ?string, errorCode: ?string, docUrl: ?string, permission: ?string, reason: ?string}
      */
     protected static function extractMetadata(int $status, mixed $body, array $headers): array
     {
@@ -72,6 +85,8 @@ class ApiException extends QuerriException
         $type = null;
         $errorCode = null;
         $docUrl = null;
+        $permission = null;
+        $reason = null;
 
         if (is_array($body)) {
             // Stripe-style nested error object (primary format)
@@ -81,6 +96,8 @@ class ApiException extends QuerriException
             $type = is_string($source['type'] ?? null) ? $source['type'] : null;
             $errorCode = is_string($source['code'] ?? null) ? $source['code'] : null;
             $docUrl = is_string($source['doc_url'] ?? null) ? $source['doc_url'] : null;
+            $permission = is_string($source['permission'] ?? null) ? $source['permission'] : null;
+            $reason = is_string($source['reason'] ?? null) ? $source['reason'] : null;
 
             // Fall back to body request_id when header is absent
             if ($requestId === null && $error !== null) {
@@ -88,12 +105,18 @@ class ApiException extends QuerriException
             }
         }
 
+        // permission_denied also names the permission in a header; use it when
+        // the body is absent or unparseable (e.g. a proxy replaced it).
+        $permission ??= self::readSingleHeader($headers, 'x-permission-denied');
+
         return [
             'message' => $message,
             'requestId' => $requestId,
             'type' => $type,
             'errorCode' => $errorCode,
             'docUrl' => $docUrl,
+            'permission' => $permission,
+            'reason' => $reason,
         ];
     }
 

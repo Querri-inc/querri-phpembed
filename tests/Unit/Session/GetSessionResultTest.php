@@ -23,6 +23,7 @@ final class GetSessionResultTest extends TestCase
             'expires_in' => 3600,
             'user_id' => 'usr_42',
             'external_id' => 'ext_99',
+            'role_id' => null,
         ], $result->jsonSerialize());
     }
 
@@ -44,6 +45,7 @@ final class GetSessionResultTest extends TestCase
             'expires_in' => 3600,
             'user_id' => 'usr_42',
             'external_id' => null,
+            'role_id' => null,
         ], $decoded);
     }
 
@@ -51,5 +53,20 @@ final class GetSessionResultTest extends TestCase
     {
         $result = new GetSessionResult('t', 10, 'u');
         $this->assertNull($result->externalId);
+    }
+
+    public function testRoleIdIsAppendedLastAndSerialized(): void
+    {
+        // Positional construction from 1.0.x keeps working; roleId is the 5th arg.
+        $result = new GetSessionResult('t', 10, 'u', 'ext', 'role_analyst');
+
+        $this->assertSame('role_analyst', $result->roleId);
+        $this->assertSame([
+            'session_token' => 't',
+            'expires_in' => 10,
+            'user_id' => 'u',
+            'external_id' => 'ext',
+            'role_id' => 'role_analyst',
+        ], $result->jsonSerialize());
     }
 }
