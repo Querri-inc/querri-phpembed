@@ -1202,13 +1202,14 @@ $key = $client->keys->create([
 - A key acts for its `bound_user_id`, else the person who created it in Settings → API keys. At every
   call it keeps only the scopes that person currently holds, so a demoted or departed creator narrows
   the key.
-- Settings refuses to mint a key beyond its creator's scopes (`403 permission_denied`, reason
-  `scope_exceeds_role`).
+- A new key can't carry more than the person minting it holds, nor more than the user it is bound to
+  holds, whether it is created in Settings or with `$client->keys->create()` (`403 permission_denied`,
+  reason `scope_exceeds_role`, with the refused `scopes` listed). A key created with
+  `$client->keys->create()` acts for the same person as the key that created it.
 - `embed:role:assign` lets `embed->createSession()` / `getSession()` **grant** a custom role the user
   doesn't hold yet. Holding it requires the `api.write_scopes.use`, `admin.embed.manage` and
   `admin.people.manage` permissions.
-- Bind keys you mint through the SDK to a user with `bound_user_id` when they should follow that
-  person's role.
+- Pass `bound_user_id` when a key should follow one specific person's role instead.
 
 #### `$client->keys->list($params)`
 
