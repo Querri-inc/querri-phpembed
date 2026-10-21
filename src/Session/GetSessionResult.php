@@ -15,11 +15,13 @@ final readonly class GetSessionResult implements \JsonSerializable
         public int $expiresIn,
         public string $userId,
         public ?string $externalId = null,
+        /** Custom Roles: the role the session runs as, or null when none was applied. */
+        public ?string $roleId = null,
     ) {
     }
 
     /**
-     * @return array{session_token: string, expires_in: int, user_id: string, external_id: string|null}
+     * @return array{session_token: string, expires_in: int, user_id: string, external_id: string|null, role_id: string|null}
      */
     public function jsonSerialize(): array
     {
@@ -28,6 +30,7 @@ final readonly class GetSessionResult implements \JsonSerializable
             'expires_in' => $this->expiresIn,
             'user_id' => $this->userId,
             'external_id' => $this->externalId,
+            'role_id' => $this->roleId,
         ];
     }
 
@@ -35,7 +38,7 @@ final readonly class GetSessionResult implements \JsonSerializable
      * @deprecated since 0.2.0, will be removed in the next major release. Use jsonSerialize() directly,
      *   or pass the object to json_encode() — JsonSerializable handles the
      *   conversion automatically.
-     * @return array{session_token: string, expires_in: int, user_id: string, external_id: string|null}
+     * @return array{session_token: string, expires_in: int, user_id: string, external_id: string|null, role_id: string|null}
      */
     public function toArray(): array
     {

@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use Querri\Embed\Exceptions\ApiException;
 use Querri\Embed\Exceptions\AuthenticationException;
 use Querri\Embed\Exceptions\ConflictException;
+use Querri\Embed\Exceptions\ErrorCode;
 use Querri\Embed\Exceptions\NotFoundException;
 use Querri\Embed\Exceptions\PermissionException;
 use Querri\Embed\Exceptions\RateLimitException;
@@ -258,5 +259,237 @@ final class ApiExceptionTest extends TestCase
 
         $this->assertSame($body, $exception->body);
         $this->assertArrayHasKey('detail', $exception->body);
+    }
+
+    /**
+     * Verbatim 401 captured from the live /v1 server on 2026-10-21: the
+     * Stripe-style error sits inside FastAPI's `detail`, and the request id is
+     * only in the header (never in the body).
+     */
+    public function testParsesVerbatimLiveMissingApiKeyResponse(): void
+    {
+        $raw = '{"detail":{"error":{"type":"authentication_error","code":"missing_api_key",'
+            . '"message":"Authorization required. Provide a Bearer qk_ API key or a valid JWT token.",'
+            . '"doc_url":"https://docs.querri.com/api/errors#missing_api_key"}}}';
+        $body = json_decode($raw, true);
+        $headers = ['x-request-id' => ['req_bcd3adccd74d40429159b73182bd6962']];
+
+        try {
+            ApiException::raiseForStatus(401, $body, $headers);
+            $this->fail('expected AuthenticationException');
+        } catch (AuthenticationException $e) {
+            $this->assertSame(
+                'Authorization required. Provide a Bearer qk_ API key or a valid JWT token.',
+                $e->getMessage(),
+            );
+            $this->assertSame('authentication_error', $e->type);
+            $this->assertSame(ErrorCode::MISSING_API_KEY, $e->errorCode);
+            $this->assertSame('https://docs.querri.com/api/errors#missing_api_key', $e->docUrl);
+            $this->assertSame('req_bcd3adccd74d40429159b73182bd6962', $e->requestId);
+            $this->assertNull($e->permission);
+            $this->assertNull($e->reason);
+        }
+    }
+
+    /** Verbatim 403 permission_denied from the live /v1 server (2026-10-21). */
+    public function testParsesVerbatimLivePermissionDeniedResponse(): void
+    {
+        $raw = '{"detail":{"error":{"type":"permission_error","code":"permission_denied",'
+            . '"message":"This action needs the dashboards.list.view permission.",'
+            . '"permission":"dashboards.list.view","reason":"role_denied",'
+            . '"doc_url":"https://docs.querri.com/api/errors#permission_denied"}}}';
+        $body = json_decode($raw, true);
+        $headers = ['x-permission-denied' => ['dashboards.list.view']];
+
+        try {
+            ApiException::raiseForStatus(403, $body, $headers);
+            $this->fail('expected PermissionException');
+        } catch (PermissionException $e) {
+            $this->assertSame('This action needs the dashboards.list.view permission.', $e->getMessage());
+            $this->assertSame('permission_error', $e->type);
+            $this->assertSame(ErrorCode::PERMISSION_DENIED, $e->errorCode);
+            $this->assertSame('dashboards.list.view', $e->permission);
+            $this->assertSame(ErrorCode::REASON_ROLE_DENIED, $e->reason);
+            $this->assertSame('https://docs.querri.com/api/errors#permission_denied', $e->docUrl);
+        }
+    }
+
+    public function testPermissionReadFromBodyWinsOverHeader(): void
+    {
+        $body = ['detail' => ['error' => [
+            'code' => 'permission_denied',
+            'message' => 'denied',
+            'permission' => 'projects.create',
+            'reason' => 'not_in_plan',
+        ]]];
+
+        $e = ApiException::fromResponse(403, $body, ['x-permission-denied' => ['something.else']]);
+
+        $this->assertSame('projects.create', $e->permission);
+        $this->assertSame('not_in_plan', $e->reason);
+    }
+
+    public function testPermissionFallsBackToHeaderWhenBodyHasNone(): void
+    {
+        // e.g. a proxy replaced the JSON body with an HTML page
+        $e = ApiException::fromResponse(403, '<html>Forbidden</html>', [
+            'x-permission-denied' => ['dashboards.list.view'],
+        ]);
+
+        $this->assertSame('dashboards.list.view', $e->permission);
+        $this->assertNull($e->reason);
+        $this->assertSame('Request failed with status 403', $e->getMessage());
+    }
+
+    /**
+     * When no single permission applies the server sends an error code in
+     * X-Permission-Denied; that must not be read as a permission key.
+     */
+    public function testPermissionHeaderHoldingAnErrorCodeIsIgnored(): void
+    {
+        $body = ['detail' => ['error' => [
+            'code' => 'permission_denied',
+            'reason' => 'scope_exceeds_role',
+            'scopes' => ['*'],
+        ]]];
+
+        $e = ApiException::fromResponse(403, $body, ['x-permission-denied' => ['permission_denied']]);
+
+        $this->assertNull($e->permission);
+        $this->assertSame(ErrorCode::PERMISSION_DENIED, $e->errorCode);
+        $this->assertSame(ErrorCode::REASON_SCOPE_EXCEEDS_ROLE, $e->reason);
+    }
+
+    public function testPermissionHeaderIsUsedWithNonJsonBody(): void
+    {
+        $e = ApiException::fromResponse(403, 'not json', ['x-permission-denied' => ['dashboards.list.view']]);
+        $this->assertSame('dashboards.list.view', $e->permission);
+    }
+
+    /** In-app routes send the code as a string `error` beside permission/reason. */
+    public function testParsesInAppFlatPermissionDeniedShape(): void
+    {
+        $body = ['detail' => [
+            'error' => 'permission_denied',
+            'permission' => 'org.admin',
+            'reason' => 'role_denied',
+            'layer' => 'route',
+        ]];
+
+        $e = ApiException::fromResponse(403, $body, []);
+
+        $this->assertSame(ErrorCode::PERMISSION_DENIED, $e->errorCode);
+        $this->assertSame('org.admin', $e->permission);
+        $this->assertSame(ErrorCode::REASON_ROLE_DENIED, $e->reason);
+    }
+
+    /** A legacy sentence in a string `error` is a message, not a code. */
+    public function testStringErrorSentenceIsNotAnErrorCode(): void
+    {
+        $e = ApiException::fromResponse(400, ['error' => 'String error message'], []);
+        $this->assertNull($e->errorCode);
+    }
+
+    public function testPermissionHeaderAcceptsScalarValue(): void
+    {
+        $e = ApiException::fromResponse(403, null, ['x-permission-denied' => 'sources.list.view']);
+        $this->assertSame('sources.list.view', $e->permission);
+    }
+
+    public function testPermissionAndReasonAreNullWhenAbsent(): void
+    {
+        $e = ApiException::fromResponse(400, ['error' => ['code' => 'x', 'message' => 'm']], []);
+        $this->assertNull($e->permission);
+        $this->assertNull($e->reason);
+    }
+
+    /** Embed role errors carry no header and no permission/reason, only the code. */
+    public function testParsesEmbedRoleDisabledError(): void
+    {
+        $raw = '{"detail":{"error":{"type":"permission_error","code":"role_disabled",'
+            . '"message":"That role is a draft; an admin must enable it first.",'
+            . '"doc_url":"https://docs.querri.com/api/errors#role_disabled"}}}';
+
+        try {
+            ApiException::raiseForStatus(403, json_decode($raw, true), []);
+            $this->fail('expected PermissionException');
+        } catch (PermissionException $e) {
+            $this->assertSame(ErrorCode::ROLE_DISABLED, $e->errorCode);
+            $this->assertSame('That role is a draft; an admin must enable it first.', $e->getMessage());
+            $this->assertNull($e->permission);
+            $this->assertNull($e->reason);
+        }
+    }
+
+    public function testRoleNotFoundMapsToNotFoundException(): void
+    {
+        $body = ['detail' => ['error' => [
+            'type' => 'not_found_error',
+            'code' => 'role_not_found',
+            'message' => "No role 'nope' in this organization.",
+            'doc_url' => 'https://docs.querri.com/api/errors#role_not_found',
+        ]]];
+
+        try {
+            ApiException::raiseForStatus(404, $body, []);
+            $this->fail('expected NotFoundException');
+        } catch (NotFoundException $e) {
+            $this->assertSame(ErrorCode::ROLE_NOT_FOUND, $e->errorCode);
+            $this->assertSame('not_found_error', $e->type);
+        }
+    }
+
+    public function testRateLimitExceptionCarriesPermissionAndReason(): void
+    {
+        $body = ['detail' => ['error' => [
+            'code' => 'rate_limit_exceeded',
+            'message' => 'slow down',
+            'permission' => 'p.key',
+            'reason' => 'forbidden',
+        ]]];
+
+        try {
+            ApiException::raiseForStatus(429, $body, ['retry-after' => ['3'], 'x-permission-denied' => ['h.key']]);
+            $this->fail('expected RateLimitException');
+        } catch (RateLimitException $e) {
+            $this->assertSame(3.0, $e->retryAfter);
+            $this->assertSame('p.key', $e->permission);
+            $this->assertSame('forbidden', $e->reason);
+            $this->assertSame('rate_limit_exceeded', $e->errorCode);
+        }
+    }
+
+    public function testRateLimitConstructorStaysPositionallyCompatible(): void
+    {
+        // Pre-1.1.0 positional call: $retryAfter then $previous. Must still work.
+        $prev = new \RuntimeException('root');
+        $e = new RateLimitException('m', 429, null, [], 'req', 't', 'c', 'd', 1.5, $prev);
+
+        $this->assertSame(1.5, $e->retryAfter);
+        $this->assertSame($prev, $e->getPrevious());
+        $this->assertSame('c', $e->errorCode);
+        $this->assertNull($e->permission);
+    }
+
+    public function testApiExceptionConstructorStaysPositionallyCompatible(): void
+    {
+        $prev = new \RuntimeException('root');
+        $e = new ApiException('m', 403, null, [], 'req', 't', 'c', 'd', $prev);
+
+        $this->assertSame($prev, $e->getPrevious());
+        $this->assertNull($e->permission);
+        $this->assertNull($e->reason);
+    }
+
+    public function testErrorCodeConstantsMatchWireValues(): void
+    {
+        $constants = (new \ReflectionClass(ErrorCode::class))->getConstants();
+        foreach ($constants as $name => $value) {
+            $expected = strtolower(preg_replace('/^REASON_/', '', $name) ?? $name);
+            $this->assertSame($expected, $value, "ErrorCode::{$name}");
+        }
+        $this->assertSame('role_not_allowed', ErrorCode::ROLE_NOT_ALLOWED);
+        $this->assertSame('seat_change_required', ErrorCode::SEAT_CHANGE_REQUIRED);
+        $this->assertSame('insufficient_scope', ErrorCode::INSUFFICIENT_SCOPE);
     }
 }

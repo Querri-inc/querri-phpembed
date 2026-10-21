@@ -26,8 +26,22 @@ class RateLimitException extends ApiException
         ?string $docUrl = null,
         ?float $retryAfter = null,
         ?\Throwable $previous = null,
+        ?string $permission = null,
+        ?string $reason = null,
     ) {
-        parent::__construct($message, $status, $body, $headers, $requestId, $type, $code, $docUrl, $previous);
+        parent::__construct(
+            $message,
+            $status,
+            $body,
+            $headers,
+            $requestId,
+            $type,
+            $code,
+            $docUrl,
+            $previous,
+            permission: $permission,
+            reason: $reason,
+        );
         $this->retryAfter = $retryAfter;
     }
 
@@ -51,6 +65,8 @@ class RateLimitException extends ApiException
             code: $meta['errorCode'],
             docUrl: $meta['docUrl'],
             retryAfter: $retryAfter,
+            permission: $meta['permission'],
+            reason: $meta['reason'],
         );
     }
 }

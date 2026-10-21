@@ -18,7 +18,8 @@ use Querri\Embed\Resources\UsersResource;
  * 2. Access policy — if inline sources+filters, auto-creates/reuses a
  *    deterministically-named policy and assigns the user to it.
  *    If policy_ids are provided, those are used directly.
- * 3. Session creation — calls embed.createSession() and returns the token.
+ * 3. Session creation — calls embed.createSession() (with `role` when given)
+ *    and returns the token plus the applied `role_id`.
  *
  * Takes the specific resources it needs (not the root QuerriClient) so the
  * Session/ subsystem doesn't create a back-edge into its parent package.
@@ -31,6 +32,7 @@ final class GetSession
      *   access?: array{policy_ids: string[]}|array{sources: string[], filters: array<string, string|string[]>}|null,
      *   origin?: string|null,
      *   ttl?: int,
+     *   role?: string|null,
      * } $params
      */
     public static function execute(
@@ -54,9 +56,10 @@ final class GetSession
         }
 
         // Validate session parameters up front — before the user-resolution
-        // and policy API calls — so a bad ttl/origin fails fast and cheap.
+        // and policy API calls — so a bad ttl/origin/role fails fast and cheap.
         EmbedResource::assertValidTtl($params['ttl'] ?? 3600);
         EmbedResource::assertValidOrigin($params['origin'] ?? null);
+        EmbedResource::assertValidRole($params['role'] ?? null);
 
         // --- Step 1: User Resolution ---
         $userResult = self::resolveUser($users, $params);
@@ -87,6 +90,13 @@ final class GetSession
             $sessionParams['origin'] = $params['origin'];
         }
 
+        // Custom Roles: the role the session runs as. Same send-only-when-set
+        // rule as origin, so callers that never pass a role send the same body;
+        // an empty string is treated as unset.
+        if (isset($params['role']) && $params['role'] !== '') {
+            $sessionParams['role'] = $params['role'];
+        }
+
         $session = $embed->createSession($sessionParams);
 
         return new GetSessionResult(
@@ -94,6 +104,7 @@ final class GetSession
             expiresIn: $session['expires_in'],
             userId: $userId,
             externalId: $externalId,
+            roleId: $session['role_id'] ?? null,
         );
     }
 

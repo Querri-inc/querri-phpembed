@@ -77,6 +77,9 @@ try {
         // null makes the SDK use default_origin / QUERRI_EMBED_ORIGIN.
         'origin' => ($_SERVER['HTTP_ORIGIN'] ?? '') ?: null,
         'ttl' => 3600,
+        // Optional Custom Role (id or key). Decide it from YOUR auth — never
+        // read it from this request, which the browser controls:
+        // 'role' => 'analyst',
     ]);
 
     echo json_encode($session);
@@ -84,7 +87,9 @@ try {
     http_response_code($e->status >= 400 ? $e->status : 500);
     echo json_encode([
         'error' => $e->getMessage(),
-        'code' => $e->errorCode,
+        'code' => $e->errorCode,         // e.g. role_disabled, permission_denied
+        'permission' => $e->permission,  // set on permission_denied
+        'reason' => $e->reason,          // e.g. role_denied
     ]);
 } catch (QuerriException $e) {
     http_response_code(500);

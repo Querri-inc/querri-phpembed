@@ -7,6 +7,7 @@ namespace Querri\Embed\Tests\Unit\Session;
 use PHPUnit\Framework\TestCase;
 use Querri\Embed\Config;
 use Querri\Embed\Exceptions\ConfigException;
+use Querri\Embed\Exceptions\ValidationException;
 use Querri\Embed\QuerriClient;
 use Querri\Embed\Session\GetSession;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -375,5 +376,89 @@ final class GetSessionTest extends TestCase
 
         $sessionBody = $this->recorded[1]['body'] ?? '';
         $this->assertStringNotContainsString('origin', $sessionBody);
+    }
+
+    public function testExecutePropagatesRoleAndReturnsRoleId(): void
+    {
+        $client = $this->buildClient([
+            new MockResponse('{"id":"usr_42","external_id":"ext_99"}', ['http_code' => 200]),
+            new MockResponse(
+                '{"session_token":"t","expires_in":3600,"user_id":"usr_42","role_id":"role_analyst"}',
+                ['http_code' => 200],
+            ),
+        ]);
+
+        $result = GetSession::execute($client->users, $client->policies, $client->embed, [
+            'user' => 'ext_99',
+            'role' => 'analyst',
+        ]);
+
+        $this->assertSame('{"user_id":"usr_42","ttl":3600,"role":"analyst"}', $this->recorded[1]['body']);
+        $this->assertSame('role_analyst', $result->roleId);
+        $this->assertSame('role_analyst', $result->jsonSerialize()['role_id']);
+    }
+
+    public function testExecuteOmitsRoleWhenNotProvidedAndRoleIdIsNull(): void
+    {
+        $client = $this->buildClient([
+            new MockResponse('{"id":"usr_42"}', ['http_code' => 200]),
+            new MockResponse('{"session_token":"t","expires_in":3600,"user_id":"usr_42"}', ['http_code' => 200]),
+        ]);
+
+        $result = GetSession::execute($client->users, $client->policies, $client->embed, ['user' => 'ext_99']);
+
+        $this->assertSame('{"user_id":"usr_42","ttl":3600}', $this->recorded[1]['body']);
+        $this->assertNull($result->roleId);
+        $this->assertArrayHasKey('role_id', $result->jsonSerialize());
+        $this->assertNull($result->jsonSerialize()['role_id']);
+    }
+
+    public function testExecuteTreatsEmptyRoleAsUnset(): void
+    {
+        $client = $this->buildClient([
+            new MockResponse('{"id":"usr_42"}', ['http_code' => 200]),
+            new MockResponse('{"session_token":"t","expires_in":3600,"user_id":"usr_42"}', ['http_code' => 200]),
+        ]);
+
+        $result = GetSession::execute($client->users, $client->policies, $client->embed, [
+            'user' => 'ext_99',
+            'role' => '',
+        ]);
+
+        $this->assertSame('{"user_id":"usr_42","ttl":3600}', $this->recorded[1]['body']);
+        $this->assertNull($result->roleId);
+    }
+
+    public function testExecuteSessionRoleIsNotTheUserOrgRole(): void
+    {
+        // user.role is the org role used to create the user; it must not leak
+        // into the session body as the Custom Roles `role`.
+        $client = $this->buildClient([
+            new MockResponse('{"id":"usr_42"}', ['http_code' => 200]),
+            new MockResponse('{"session_token":"t","expires_in":3600,"user_id":"usr_42"}', ['http_code' => 200]),
+        ]);
+
+        GetSession::execute($client->users, $client->policies, $client->embed, [
+            'user' => ['external_id' => 'ext_99', 'role' => 'member'],
+        ]);
+
+        $this->assertStringContainsString('"role":"member"', $this->recorded[0]['body'] ?? '');
+        $this->assertSame('{"user_id":"usr_42","ttl":3600}', $this->recorded[1]['body']);
+    }
+
+    public function testExecuteRejectsOverlongRoleBeforeAnyHttpCall(): void
+    {
+        $client = $this->buildClient([]);
+
+        try {
+            GetSession::execute($client->users, $client->policies, $client->embed, [
+                'user' => 'ext_99',
+                'role' => str_repeat('r', 101),
+            ]);
+            $this->fail('expected ValidationException');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('role must be at most 100 characters', $e->getMessage());
+        }
+        $this->assertCount(0, $this->recorded);
     }
 }
