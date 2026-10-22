@@ -255,7 +255,7 @@ Manage users in your organization.
 
 > The `role` field accepts `"admin"` or `"member"` (default). This controls the user's organization-level role. Resource-level permissions (viewer/editor/owner on projects, dashboards, and sources) are managed separately through access policies.
 
-> You can only give or remove a role whose permissions you hold yourself, and the organization must keep an Admin: otherwise `create`, `update` and `delete` throw `PermissionException` (code `escalation_denied`) or `ConflictException` (code `last_admin`). This applies on servers released after 2026-10-21.
+> You can only give or remove a role whose permissions you hold yourself (with an API key: permissions both its creator and its bound user, if any, hold), and the organization must keep an Admin: otherwise `create`, `update`, `del` and `getOrCreate` throw `PermissionException` (code `escalation_denied`) or `ConflictException` (code `last_admin`). `getSession()` calls `getOrCreate()`, so it can also throw `escalation_denied` for a new user. The refused permission keys are only in the raw body: `$e->body['detail']['error']['missing']`. This applies on servers released after 2026-10-21.
 
 #### `$client->users->create($params)`
 
@@ -379,7 +379,9 @@ $session = $client->embed->createSession([
 
 `role` runs the session as one of the organization's custom roles. It is **not** the `role` you pass
 to `users->getOrCreate()` (that is the org role, `admin`/`member`). The response carries `role_id`
-only when a role was applied. An empty string is treated like no `role`. Rules, checked in this order:
+only when a role was applied. An empty string is treated like no `role`. An older server ignores
+`role`: `role_id` is then null and the session runs as the user's own role, so check `role_id`
+whenever the role matters. Rules, checked in this order:
 
 | Situation | Result |
 |---|---|
@@ -388,9 +390,13 @@ only when a role was applied. An empty string is treated like no `role`. Rules, 
 | A draft role | `PermissionException`, `role_disabled` |
 | A role the user already holds | Selected — no extra scope needed |
 | Key lacks `embed:role:assign` | `PermissionException`, `insufficient_scope` |
-| Role not on the embed allow-list (Settings → Embed), or the person the key acts for (its bound user, else its creator) doesn't hold every permission in it | `PermissionException`, `role_not_allowed` |
+| Role not on the embed allow-list (Settings → Embed), or the people behind the key don't hold every permission in it (servers released after 2026-10-21: both its creator and its bound user, if any; earlier servers: its bound user, else its creator) | `PermissionException`, `role_not_allowed` |
 | Role would need a creator seat | `PermissionException`, `seat_change_required` |
 | Otherwise | Granted to the user (audited as `role.assign`) and selected |
+
+> **A grant is permanent.** It adds the role to the user's assignment, so later sessions and the
+> Querri app see it too. Revoking the session doesn't remove it; an admin removes it in
+> Settings → People.
 
 > **Security:** decide `role` on your server from your own auth. Never read it from the browser's
 > request — the embed's `sessionEndpoint` mode POSTs with no body on purpose.
@@ -1209,16 +1215,22 @@ $key = $client->keys->create([
 - A key acts for its creator **and** its bound user (`bound_user_id`). Every call keeps only the
   scopes both of them hold now, so demoting or removing either one narrows the key.
 - A new key can't carry more than its creator and its bound user hold (`403 permission_denied`,
-  reason `scope_exceeds_role`, with the refused `scopes` listed).
+  reason `scope_exceeds_role`). The refused scopes are only in the raw body:
+  `$e->body['detail']['error']['scopes']`.
 - Only an Admin may bind a key to someone else (`403 permission_denied`, permission `org.admin`,
   reason `role_denied`); binding a key to yourself is fine.
-- A key created with `$client->keys->create()` acts for the same creator and bound user as the key
-  that created it, and keeps that key's workspace, sources (equal or narrower), access policies and
-  IP allow-list (equal or narrower).
-- `bound_user_id` can't be a pseudo id.
+- A key created with `$client->keys->create()` (a key minted by a key) keeps the creator and bound
+  user of the key that created it. A bound key can only mint keys bound to the same user
+  (`400 invalid_parameters` otherwise). The new key also keeps the parent's workspace; its sources
+  must be the same or narrower; its access policies must be exactly the same set; each IP allow-list
+  entry must sit inside one of the parent's IPs or CIDRs; it can't expire after the parent; and its
+  rate limit is capped at the parent's.
+- `bound_user_id` must be a real user: a pseudo id (`api_key:…`, `jwt:…`, `embed:…`, `public`,
+  `embed-api` or the service id) is refused with `400 invalid_parameters`.
 - `embed:role:assign` lets `embed->createSession()` / `getSession()` **grant** a custom role the user
-  doesn't hold yet. Holding it requires the `api.write_scopes.use`, `admin.embed.manage` and
-  `admin.people.manage` permissions.
+  doesn't hold yet (a permanent grant — see [`createSession`](#client-embed-createsessionparams)).
+  Holding it requires the `api.write_scopes.use`, `admin.embed.manage` and `admin.people.manage`
+  permissions. The `*` scope includes it.
 - Pass `bound_user_id` when a key should also be limited to one specific person's role.
 
 These rules apply on servers released after 2026-10-21; earlier servers cap only keys created in
@@ -1587,7 +1599,12 @@ $client->getSession(array $params): GetSessionResult
 | `access` | `array\|null` | No | Policy IDs or inline sources + filters |
 | `origin` | `string\|null` | No | Allowed origin for the embed iframe (CORS validation). Falls back to `default_origin` / `QUERRI_EMBED_ORIGIN` when omitted or null. Max 500 characters. |
 | `ttl` | `int` | No | Session lifetime in seconds, 900–86400 (default: `3600`). Out-of-range values throw `ValidationException` before any HTTP call. |
-| `role` | `string\|null` | No | Custom Role id or key the session runs as (max 100 characters; longer throws `ValidationException` before any HTTP call). Sent only when a non-empty string. The user is created/updated and access policies applied before the session is requested, so if the role is refused those steps have still happened. Not the same as `user.role`, the org role (`admin`/`member`) used only when creating the user. See [`createSession`](#client-embed-createsessionparams) for the rules and errors. **Decide it on your server, never from the browser's request.** |
+| `role` | `string\|null` | No | Custom Role id or key the session runs as (max 100 characters; longer throws `ValidationException` before any HTTP call). Sent only when a non-empty string. The user is created/updated and access policies applied before the session is requested, so if the role is refused those steps have still happened. Granting a role the user doesn't hold is permanent (it stays on their assignment after the session ends). An older server ignores it — check `roleId`. Not the same as `user.role`, the org role (`admin`/`member`) used only when creating the user. See [`createSession`](#client-embed-createsessionparams) for the rules and errors. **Decide it on your server, never from the browser's request.** |
+
+`getSession()` resolves the user with `users->getOrCreate()` first, so creating a new user can be
+refused with `PermissionException` code `escalation_denied` (the user's org role would carry
+permissions the people behind the key don't hold; the refused keys are only in
+`$e->body['detail']['error']['missing']`) on servers released after 2026-10-21.
 
 ### Return Value: `GetSessionResult`
 
@@ -1597,7 +1614,7 @@ $client->getSession(array $params): GetSessionResult
 | `expiresIn` | `int` | Seconds until the token expires |
 | `userId` | `string` | Querri internal user ID |
 | `externalId` | `string\|null` | Your external ID for the user |
-| `roleId` | `string\|null` | The role the session runs as (a custom role id `role_…` or a built-in role id such as `system:creator`); `null` when no `role` was applied |
+| `roleId` | `string\|null` | The role the session runs as (a custom role id `role_…` or a built-in role id such as `system:creator`); `null` when no `role` was applied — or when an older server ignored `role`, in which case the session runs as the user's own role |
 
 `GetSessionResult` implements `JsonSerializable`, so you can pass it directly to `json_encode()`:
 
@@ -1745,7 +1762,7 @@ too, so keep a default branch.
 | `INSUFFICIENT_SCOPE` | `insufficient_scope` | 403 | The key lacks the scope the call needs — including `embed:role:assign` to grant a role the user doesn't hold |
 | `PERMISSION_DENIED` | `permission_denied` | 403 | The caller's role does not grant the action; see `permission` and `reason` |
 | `ROLE_NOT_FOUND` | `role_not_found` | 404 | No role with that id or key |
-| `ROLE_NOT_ALLOWED` | `role_not_allowed` | 403 | Admin role, not on the embed allow-list, or the person the key acts for (its bound user, else its creator) doesn't hold every permission in it |
+| `ROLE_NOT_ALLOWED` | `role_not_allowed` | 403 | Admin role, not on the embed allow-list, or the people behind the key don't hold every permission in it (servers released after 2026-10-21: its creator and its bound user, if any; earlier: its bound user, else its creator) |
 | `ROLE_DISABLED` | `role_disabled` | 403 | The role is a draft; an admin must enable it |
 | `SEAT_CHANGE_REQUIRED` | `seat_change_required` | 403 | The role needs a creator seat; an admin must assign it in Settings |
 | `NOT_ORG_MEMBER` | `not_org_member` | 403 | The user is not a member of the organization |
@@ -1757,15 +1774,20 @@ too, so keep a default branch.
 | `SESSION_CREATION_FAILED` | `session_creation_failed` | 500 | The session could not be created |
 | `REFRESH_FAILED` | `refresh_failed` | 500 | The session could not be refreshed |
 | `MEMBERSHIP_CHECK_FAILED` | `membership_check_failed` | 500 | The membership check failed |
+| `ESCALATION_DENIED` | `escalation_denied` | 403 | A `/v1` users `create`/`update`/`del`/`getOrCreate` (so also `getSession()` for a new user) would give or remove permissions the caller doesn't hold; the keys are only in `$e->body['detail']['error']['missing']` |
+| `LAST_ADMIN` | `last_admin` | 409 | The change would leave the organization without an Admin (a `ConflictException`) |
+| `INVALID_PARAMETERS` | `invalid_parameters` | 400 | A parameter was refused — e.g. an unknown scope, a pseudo `bound_user_id`, or a bound key minting a key for another user |
 
 The `reason` values are also constants: `ErrorCode::REASON_ROLE_DENIED`, `REASON_NOT_IN_PLAN`,
 `REASON_FLAG_OFF`, `REASON_EMBED_DISABLED`, `REASON_DEPENDENCY_UNMET`, `REASON_SCOPE_EXCEEDS_ROLE`
-(creating an API key with scopes its creator or bound user lacks), `REASON_FORBIDDEN`. The server may
-add more.
+(creating an API key with scopes its creator or bound user lacks; the refused scopes are only in
+`$e->body['detail']['error']['scopes']`), `REASON_FORBIDDEN`. The server may add more.
 
 On the wire every `/v1` error is `{"detail": {"error": {"type", "code", "message", "doc_url"}}}`
-(plus `permission` and `reason` on `permission_denied`); the SDK unwraps it for you and keeps the raw
-body in `$body`.
+(plus `permission` and `reason` on `permission_denied`, and extra fields such as `scopes` or
+`missing` on some codes); some routes send `{"detail": {"error": "<code>", "message": "…"}}` or
+`{"detail": "<text>"}` instead. The SDK unwraps all of them for you and keeps the raw body in `$body`
+— read extra fields from there, e.g. `$e->body['detail']['error']['missing']`.
 
 ### Common Patterns
 

@@ -27,7 +27,11 @@ final class EmbedResource extends BaseResource
      * field of UsersResource::getOrCreate()). A role the user already holds is
      * selected; a role they do not hold is granted only when the key has the
      * `embed:role:assign` scope and the role is on the organization's embed
-     * allow-list. The response carries `role_id` only when a role was applied.
+     * allow-list. Such a grant is permanent: it adds the role to the user's
+     * assignment (later sessions and the app see it), revoking the session
+     * does not remove it, and an admin removes it in Settings → People. The
+     * response carries `role_id` only when a role was applied; an older server
+     * ignores `role` and omits it, so check `role_id` when the role matters.
      * Decide `role` on your server from your own auth — never take it from the
      * browser's request.
      *

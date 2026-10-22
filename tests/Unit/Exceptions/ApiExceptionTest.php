@@ -390,6 +390,72 @@ final class ApiExceptionTest extends TestCase
         $this->assertNull($e->errorCode);
     }
 
+    /** A top-level legacy `{error: 'forbidden'}` is a message, never a code. */
+    public function testTopLevelCodeShapedStringErrorIsNotAnErrorCode(): void
+    {
+        $e = ApiException::fromResponse(403, ['error' => 'forbidden'], []);
+
+        $this->assertNull($e->errorCode);
+        $this->assertSame('forbidden', $e->getMessage());
+    }
+
+    /** The in-app flat shape's human `message` is the exception message, not the code. */
+    public function testInAppFlatShapeUsesItsMessage(): void
+    {
+        $body = ['detail' => [
+            'error' => 'escalation_denied',
+            'message' => 'You cannot grant permissions you do not hold.',
+            'missing' => ['org.admin'],
+        ]];
+
+        $e = ApiException::fromResponse(403, $body, []);
+
+        $this->assertSame(ErrorCode::ESCALATION_DENIED, $e->errorCode);
+        $this->assertSame('You cannot grant permissions you do not hold.', $e->getMessage());
+    }
+
+    /** The header names a permission only for permission_denied; other codes never borrow it. */
+    public function testPermissionHeaderIgnoredForOtherErrorCodes(): void
+    {
+        $body = ['detail' => ['error' => [
+            'type' => 'permission_error',
+            'code' => 'escalation_denied',
+            'message' => 'denied',
+            'missing' => ['dashboards.list.view'],
+        ]]];
+
+        $e = ApiException::fromResponse(403, $body, ['x-permission-denied' => ['dashboards.list.view']]);
+
+        $this->assertSame(ErrorCode::ESCALATION_DENIED, $e->errorCode);
+        $this->assertNull($e->permission);
+    }
+
+    public function testPermissionHeaderUsedForPermissionDeniedWithoutBodyPermission(): void
+    {
+        $body = ['detail' => ['error' => ['code' => 'permission_denied', 'message' => 'denied']]];
+
+        $e = ApiException::fromResponse(403, $body, ['x-permission-denied' => ['org.admin']]);
+
+        $this->assertSame('org.admin', $e->permission);
+    }
+
+    public function testLastAdminMapsToConflictException(): void
+    {
+        $body = ['detail' => ['error' => [
+            'type' => 'conflict_error',
+            'code' => 'last_admin',
+            'message' => 'The organization must keep at least one admin.',
+        ]]];
+
+        try {
+            ApiException::raiseForStatus(409, $body, []);
+            $this->fail('expected ConflictException');
+        } catch (ConflictException $e) {
+            $this->assertSame(ErrorCode::LAST_ADMIN, $e->errorCode);
+            $this->assertSame('The organization must keep at least one admin.', $e->getMessage());
+        }
+    }
+
     public function testPermissionHeaderAcceptsScalarValue(): void
     {
         $e = ApiException::fromResponse(403, null, ['x-permission-denied' => 'sources.list.view']);

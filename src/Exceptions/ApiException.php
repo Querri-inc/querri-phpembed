@@ -81,6 +81,9 @@ class ApiException extends QuerriException
      */
     protected static function extractMetadata(int $status, mixed $body, array $headers): array
     {
+        // Only a body that came wrapped in FastAPI's `detail` can carry the
+        // in-app flat shape; a top-level string `error` is the legacy format.
+        $wrapped = is_array($body) && is_array($body['detail'] ?? null);
         $body = self::unwrapFastApiDetail($body);
         $message = self::extractMessage($status, $body);
         $requestId = self::readSingleHeader($headers, 'x-request-id');
@@ -97,11 +100,13 @@ class ApiException extends QuerriException
 
             $type = is_string($source['type'] ?? null) ? $source['type'] : null;
             $errorCode = is_string($source['code'] ?? null) ? $source['code'] : null;
-            // In-app flat shape: {error: 'permission_denied', permission, reason, layer}
-            // carries the code as a string `error` rather than `code`. Only a
-            // code-shaped string counts — legacy bodies put a sentence there.
+            // In-app flat shape: {detail: {error: 'permission_denied', message?,
+            // permission, reason, layer}} carries the code as a string `error`
+            // rather than `code`. Only inside `detail`, and only a code-shaped
+            // string — a top-level legacy {error: '...'} is a message, not a code.
             if (
-                $errorCode === null
+                $wrapped
+                && $errorCode === null
                 && $error === null
                 && is_string($body['error'] ?? null)
                 && preg_match('/^[a-z][a-z0-9_]*$/', $body['error']) === 1
@@ -122,8 +127,13 @@ class ApiException extends QuerriException
         // the body is absent or unparseable (e.g. a proxy replaced it). When no
         // single permission applies the server puts an error code there instead
         // (`permission_denied`); permission keys always contain a dot
-        // (`dashboards.list.view`, `org.admin`) and error codes never do.
-        if ($permission === null) {
+        // (`dashboards.list.view`, `org.admin`) and error codes never do. The
+        // header is only trusted for a permission_denied (or unparsed) error,
+        // so another refusal (e.g. escalation_denied) never borrows it.
+        if (
+            $permission === null
+            && ($errorCode === null || $errorCode === ErrorCode::PERMISSION_DENIED)
+        ) {
             $header = self::readSingleHeader($headers, 'x-permission-denied');
             if ($header !== null && str_contains($header, '.')) {
                 $permission = $header;

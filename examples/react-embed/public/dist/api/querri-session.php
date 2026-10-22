@@ -12,7 +12,7 @@ declare(strict_types=1);
  * (e.g., JWT, session cookie, OAuth token).
  */
 
-require_once __DIR__ . '/../../../../vendor/autoload.php';
+require_once __DIR__ . '/../../../../../vendor/autoload.php';
 
 use Querri\Embed\QuerriClient;
 use Querri\Embed\Exceptions\ApiException;
@@ -47,19 +47,39 @@ try {
     //           'sources' => ['src_sales_data'],
     //           'filters' => ['tenant_id' => $authUser->tenantId],
     //       ],
+    //       'origin' => ($_SERVER['HTTP_ORIGIN'] ?? '') ?: null,
     //       'ttl' => 3600,
     //   ]);
     //
     // ------------------------------------------------------------------
 
+    // Demo payload — replace the user identity with your real user, and
+    // replace the access block with the sources and row-level filters that
+    // apply to them. For local testing, point `sources` at a source name or
+    // UUID that exists in your Querri org.
     $session = $client->getSession([
         'user' => [
-            'external_id' => 'demo-user',
-            'email'       => 'demo@example.com',
-            'first_name'  => 'Jane',
-            'last_name'   => 'Doe',
+            'external_id' => 'demo-user-123',
+            'email'       => 'demo.user@example.com',
+            'first_name'  => 'Demo',
+            'last_name'   => 'User',
         ],
+        'access' => [
+            // List the sources this user is allowed to query (by name or UUID).
+            'sources' => ['your_source_name_or_uuid'],
+            // Optional: restrict rows by column values. Example shown; remove
+            // or adapt to your schema.
+            'filters' => [
+                'tenant_id' => ['tenant_1', 'tenant_2'],
+            ],
+        ],
+        // ?: (not ??) so an EMPTY Origin header also falls through to null —
+        // null makes the SDK use default_origin / QUERRI_EMBED_ORIGIN.
+        'origin' => ($_SERVER['HTTP_ORIGIN'] ?? '') ?: null,
         'ttl' => 3600,
+        // Optional Custom Role (id or key). Decide it from YOUR auth — never
+        // read it from this request, which the browser controls:
+        // 'role' => 'analyst',
     ]);
 
     echo json_encode($session);
@@ -67,7 +87,9 @@ try {
     http_response_code($e->status >= 400 ? $e->status : 500);
     echo json_encode([
         'error' => $e->getMessage(),
-        'code' => $e->errorCode,
+        'code' => $e->errorCode,         // e.g. role_disabled, permission_denied
+        'permission' => $e->permission,  // set on permission_denied
+        'reason' => $e->reason,          // e.g. role_denied
     ]);
 } catch (QuerriException $e) {
     http_response_code(500);
