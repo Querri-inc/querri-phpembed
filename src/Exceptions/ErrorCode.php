@@ -57,8 +57,10 @@ final class ErrorCode
     public const ROLE_NOT_FOUND = 'role_not_found';
     /**
      * 403 — the role is the Admin role, is not on the organization's list of
-     * roles embeds may grant (Settings → Embed), or the person the key acts for
-     * (its bound user, else its creator) doesn't hold every permission in it.
+     * roles embeds may grant (Settings → Embed), or the people behind the key
+     * don't hold every permission in it: on servers released after 2026-10-21,
+     * both its creator and its bound user (if any) must hold them; earlier
+     * servers check its bound user, else its creator.
      */
     public const ROLE_NOT_ALLOWED = 'role_not_allowed';
     /** 403 — the role is a draft; an admin must enable it first. */
@@ -74,6 +76,24 @@ final class ErrorCode
      * there), 404 on the users endpoints.
      */
     public const USER_NOT_FOUND = 'user_not_found';
+    /**
+     * 403 — the change would give or remove permissions the caller doesn't
+     * hold (with an API key: its creator and its bound user, if any) — on `/v1`
+     * users create, update, del and getOrCreate, so also getSession() for a
+     * new user. The refused permission keys are only in the raw body:
+     * `$e->body['detail']['error']['missing']`.
+     */
+    public const ESCALATION_DENIED = 'escalation_denied';
+    /**
+     * 409 (a ConflictException) — the change would leave the organization
+     * without an admin.
+     */
+    public const LAST_ADMIN = 'last_admin';
+    /**
+     * 400 — a parameter was refused, e.g. a key minted by a bound key bound to
+     * a different user, or a `bound_user_id` that is not a real user.
+     */
+    public const INVALID_PARAMETERS = 'invalid_parameters';
     /** 400 — the organization has a domain allow-list, so `origin` is required. */
     public const ORIGIN_REQUIRED = 'origin_required';
     /** 403 — the `origin` is not on the organization's allowed domains. */
@@ -101,8 +121,9 @@ final class ErrorCode
     /** A permission this one depends on is not granted. */
     public const REASON_DEPENDENCY_UNMET = 'dependency_unmet';
     /**
-     * Creating an API key with scopes its creator or bound user lacks; the
-     * error lists the refused `scopes`.
+     * Creating an API key with scopes its creator or bound user lacks. The
+     * refused scopes are only in the raw body:
+     * `$e->body['detail']['error']['scopes']`.
      */
     public const REASON_SCOPE_EXCEEDS_ROLE = 'scope_exceeds_role';
     /** Denied for another reason. */

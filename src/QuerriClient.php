@@ -139,7 +139,8 @@ final class QuerriClient
      * 3. Session creation — creates an embed session token
      *
      * `role` (Custom Roles) is the role id or key the session runs as; the
-     * result's `roleId` says which role was applied (null when none). It is
+     * result's `roleId` says which role was applied (null when none, or when
+     * an older server ignored `role` — check it when the role matters). It is
      * not `user.role`, which is the org role (`admin`/`member`) used only when
      * the user is first created. Decide `role` on your server from your own
      * auth — never read it from the browser's request.
@@ -151,6 +152,9 @@ final class QuerriClient
      *   ttl?: int,
      *   role?: string|null,
      * } $params
+     *
+     * @throws \Querri\Embed\Exceptions\PermissionException e.g. `escalation_denied` when
+     *   creating a new user is refused, or a role error from createSession()
      */
     public function getSession(array $params): GetSessionResult
     {

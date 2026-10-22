@@ -169,10 +169,18 @@ $session = $client->getSession([
 $session->roleId;          // 'role_…' (or a built-in role id such as 'system:creator') when the role was applied, else null
 ```
 
+`roleId` is null when no role was applied — and also when an older server ignored `role`, in which
+case the session runs as the user's own role. Check it whenever the role matters.
+
 - A role the user already holds is simply selected.
 - A role they don't hold is granted only when the API key has the `embed:role:assign` scope and the
-  role is on the organization's embed allow-list (Settings → Embed). Otherwise the call throws
+  role is on the organization's embed allow-list (Settings → Embed), and the people behind the key
+  hold every permission in it (servers released after 2026-10-21: both the key's creator and its
+  bound user, if any; earlier servers: its bound user, else its creator). Otherwise the call throws
   `PermissionException` with `errorCode` `insufficient_scope` or `role_not_allowed`.
+- **A grant is permanent.** It adds the role to the user's assignment, so later sessions and the
+  Querri app see it too; revoking the session doesn't remove it. An admin removes it in
+  Settings → People.
 - An unknown role throws `NotFoundException` (`role_not_found`); a draft role `role_disabled`; a role
   that needs a creator seat `seat_change_required`.
 - **`role` is not `user.role`.** `user.role` is the org role (`admin`/`member`) used only when the
@@ -181,6 +189,9 @@ $session->roleId;          // 'role_…' (or a built-in role id such as 'system:
   edit that.
 - `getSession()` creates or updates the user and applies access policies before it requests the
   session, so if the role is refused those steps have still happened.
+- Creating a new user can itself be refused: `PermissionException` with `escalation_denied` when the
+  user's org role would carry permissions the people behind the key don't hold (the refused keys are
+  only in the raw body, `$e->body['detail']['error']['missing']`).
 - An empty string is treated like no `role`.
 
 ### GetSessionResult
@@ -190,7 +201,7 @@ $session->sessionToken;  // string — opaque `es_…` session token for the emb
 $session->expiresIn;     // int — seconds until expiry
 $session->userId;        // string — Querri user ID
 $session->externalId;    // string|null — your external ID
-$session->roleId;        // string|null — the custom role the session runs as (null when none)
+$session->roleId;        // string|null — the custom role the session runs as (null when none, or an older server ignored `role`)
 
 // JSON-serializable for API responses
 echo json_encode($session);

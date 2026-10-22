@@ -10,6 +10,8 @@ Prior to `1.0.0`, minor version bumps may contain breaking changes.
 ## [1.1.0] — Unreleased
 
 Custom Roles support. Additive: no existing signature changes meaning.
+Several behaviours below depend on servers released after 2026-10-21 and are
+marked as such.
 
 ### Added
 
@@ -17,9 +19,21 @@ Custom Roles support. Additive: no existing signature changes meaning.
   accept an optional top-level `role` (a Custom Role id or key, at most 100
   characters — `EmbedResource::MAX_ROLE_LENGTH`, checked before any HTTP
   call like `ttl`/`origin`). It is sent only when set, so existing calls
-  send the same request body. It is distinct from `user.role`, which is
-  still the org role (`admin`/`member`) used when the user is created.
-  Decide it on your server, never from the browser's request.
+  send the same request body; an empty string is treated as unset. It is
+  distinct from `user.role`, which is still the org role (`admin`/`member`)
+  used when the user is created. Decide it on your server, never from the
+  browser's request.
+  - A role the user doesn't hold is granted only with the key's
+    `embed:role:assign` scope (which `*` includes), when the role is on the
+    organization's embed allow-list, and when the people behind the key hold
+    every permission in it (servers released after 2026-10-21: both its
+    creator and its bound user, if any; earlier servers: its bound user, else
+    its creator).
+  - **Such a grant is permanent:** it adds the role to the user's assignment,
+    so later sessions and the app see it; revoking the session doesn't remove
+    it; an admin removes it in Settings → People.
+  - An older server ignores `role`: `role_id` is then null and the session
+    runs as the user's own role. Check `roleId` when the role matters.
 - **`GetSessionResult::$roleId`** (`?string`, appended as the last
   constructor parameter so positional construction keeps working).
   `jsonSerialize()`/`toArray()` now always include `role_id` (`null` when
@@ -27,28 +41,67 @@ Custom Roles support. Additive: no existing signature changes meaning.
   `role_id?: string` (present when the session runs as a role; refresh keeps
   it and echoes it), and `listSessions()` items carry `role_id` (null when
   none). Servers released after 2026-10-21 also return `role_id` from
-  refresh and list; earlier servers return it only from create. An empty
-  `role` string is treated as unset.
+  refresh and list; earlier servers return it only from create.
 - **`ApiException::$permission` and `::$reason`.** A role-system denial
   (`403 permission_denied`) names the denied permission key (from the body,
   else the `X-Permission-Denied` header) and why (`role_denied`,
   `not_in_plan`, `flag_off`, `embed_disabled`, `dependency_unmet`,
   `scope_exceeds_role`, `forbidden`; the server may add more). The header is
-  used only when it holds a permission key (contains a `.`), not an error
-  code; the in-app flat `{error: "permission_denied", …}` shape also sets
-  `errorCode`. Both are appended after `$previous` in the constructors of
-  `ApiException` and `RateLimitException`, so positional subclass calls are
-  unaffected.
+  used only when the error's code is `permission_denied` (or no code could
+  be parsed) and the header holds a permission key (contains a `.`), never an
+  error code, so another refusal such as `escalation_denied` never borrows it.
+  Both are appended after `$previous` in the constructors of `ApiException`
+  and `RateLimitException`, so positional subclass calls are unaffected.
+- **In-app flat error shape.** A body of the form
+  `{"detail": {"error": "<code>", "message": "…", …}}` now sets `errorCode`
+  from the code-shaped string `error`, and `getMessage()` is its `message`
+  (not the code). Only a body wrapped in `detail` is read this way: a
+  top-level legacy `{"error": "forbidden"}` stays a message with no code.
 - **`Querri\Embed\Exceptions\ErrorCode`** — constants for the `/v1` codes
-  for authentication, access, Custom Roles and embed sessions (the API sends
-  other codes too, so keep a default branch), including `ROLE_NOT_FOUND`, `ROLE_NOT_ALLOWED`,
-  `ROLE_DISABLED`, `SEAT_CHANGE_REQUIRED`, `INSUFFICIENT_SCOPE`,
-  `PERMISSION_DENIED`, and the `reason` values (`REASON_*`, including
+  for authentication, access, Custom Roles, users and embed sessions (the API
+  sends other codes too, so keep a default branch), including
+  `ROLE_NOT_FOUND`, `ROLE_NOT_ALLOWED`, `ROLE_DISABLED`,
+  `SEAT_CHANGE_REQUIRED`, `INSUFFICIENT_SCOPE`, `PERMISSION_DENIED`,
+  `ESCALATION_DENIED` (403), `LAST_ADMIN` (409, a `ConflictException`),
+  `INVALID_PARAMETERS` (400), and the `reason` values (`REASON_*`, including
   `REASON_SCOPE_EXCEEDS_ROLE`).
-- Docs: error-code table; `embed:role:assign` scope and how API-key scopes
-  follow both the key's creator and its bound user (servers released after
-  2026-10-21); `asUser()` calls can raise `permission_denied`; session
-  endpoint examples return `code`, `permission` and `reason`.
+- Docs: error-code table; extra error fields (`scopes`, `missing`) are only in
+  the raw body, e.g. `$e->body['detail']['error']['missing']`; `asUser()`
+  calls can raise `permission_denied`; session endpoint examples return
+  `code`, `permission` and `reason`.
+- Docs, API keys (servers released after 2026-10-21): a key's scopes narrow
+  to what its creator **and** its bound user both hold; new keys are capped
+  by both (`403 permission_denied`, reason `scope_exceeds_role`); only an
+  Admin may bind a key to someone else (`403`, permission `org.admin`); a key
+  minted by a key keeps its creator, bound user and workspace — a bound key
+  can mint only keys bound to the same user (`400 invalid_parameters`), and
+  the child's sources must be equal or narrower, its access policies exactly
+  the same set, each IP allow-list entry inside one of the parent's IPs or
+  CIDRs, its expiry no later and its rate limit no higher than the parent's;
+  a pseudo `bound_user_id` (`api_key:…`, `jwt:…`, `embed:…`, `public`,
+  `embed-api`, the service id) is refused with `400 invalid_parameters`.
+- Docs, users (servers released after 2026-10-21): `users->create()`,
+  `update()`, `del()` and `getOrCreate()` — and so `getSession()` for a new
+  user — can be refused with `403 escalation_denied` (the refused keys in
+  `missing`) or `409 last_admin`.
+
+### Changed
+
+- `refreshSession()`'s phpstan return type was narrowed from
+  `array<string, mixed>` to the fixed shape
+  `array{session_token: string, expires_in: int, user_id: string|null, role_id?: string}`.
+  Runtime behaviour is unchanged, but code that static analysis checked
+  against the loose type may now report reads of other keys.
+
+### Fixed
+
+- Example app: the built copies in `examples/react-embed/public/dist/api/`
+  required `vendor/autoload.php` one directory too shallow (they sit one level
+  deeper than `public/api/`), `dist/api/sdk.php` passed an int to
+  `listSessions(?array)` (a `TypeError` under `strict_types`), and
+  `dist/api/querri-session.php` now matches `public/api/querri-session.php`.
+- Example app: the SDK explorer (`sdk.php`) warns that it lets the browser
+  choose any parameter, including `role`, and must never be deployed.
 
 ### Caller risk
 

@@ -18,7 +18,7 @@ declare(strict_types=1);
  * access) on the server from its own auth; see querri-session.php.
  */
 
-require_once __DIR__ . '/../../../../vendor/autoload.php';
+require_once __DIR__ . '/../../../../../vendor/autoload.php';
 
 use Querri\Embed\QuerriClient;
 use Querri\Embed\Exceptions\ApiException;
@@ -56,7 +56,7 @@ try {
         // endpoints decide `role` server-side -- see querri-session.php.
         'embed.createSession'      => $client->embed->createSession($params),
         'embed.refreshSession'     => $client->embed->refreshSession($params['session_token']),
-        'embed.listSessions'       => $client->embed->listSessions($params['limit'] ?? null),
+        'embed.listSessions'       => $client->embed->listSessions(array_filter(['limit' => isset($params['limit']) ? (int) $params['limit'] : null, 'after' => $params['after'] ?? null], static fn($v) => $v !== null) ?: null),
         'embed.revokeSession'      => $client->embed->revokeSession($params['session_id']),
         'embed.revokeUserSessions' => ['revoked' => $client->embed->revokeUserSessions($params['user_id'])],
 

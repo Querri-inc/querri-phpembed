@@ -15,7 +15,11 @@ final readonly class GetSessionResult implements \JsonSerializable
         public int $expiresIn,
         public string $userId,
         public ?string $externalId = null,
-        /** Custom Roles: the role the session runs as, or null when none was applied. */
+        /**
+         * Custom Roles: the role the session runs as, or null when none was
+         * applied — including when an older server ignored `role` (the session
+         * then runs as the user's own role).
+         */
         public ?string $roleId = null,
     ) {
     }
