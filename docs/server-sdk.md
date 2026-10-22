@@ -392,6 +392,7 @@ whenever the role matters. Rules, checked in this order:
 | Key lacks `embed:role:assign` | `PermissionException`, `insufficient_scope` |
 | Role not on the embed allow-list (Settings → Embed), or the people behind the key don't hold every permission in it (servers released after 2026-10-21: both its creator and its bound user, if any; earlier servers: its bound user, else its creator) | `PermissionException`, `role_not_allowed` |
 | Role would need a creator seat | `PermissionException`, `seat_change_required` |
+| The user holds more than the key's people (creator and bound user), e.g. an Admin from a key a Creator made; servers released after 2026-10-21, with or without `role` | `PermissionException`, `escalation_denied` |
 | Otherwise | Granted to the user (audited as `role.assign`) and selected |
 
 > **A grant is permanent.** It adds the role to the user's assignment, so later sessions and the
